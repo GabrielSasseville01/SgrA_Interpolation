@@ -1,4 +1,4 @@
-This is a repository for the Python code used to generate the animation in Witzel et al. 2021. It also contains the animation (Figure 22 of Witzel et al.), the particle system with the posterior of the model parameters, and an example Jupyter notebook.
+This is a repository for the Python code used to generate the animation in Witzel et al. 2021. It also contains the animation (Figure 22 of Witzel et al.), the particle system with the posterior of the model parameters, and an example Jupyter notebook. It has been adapted in Sasseville et al. 2024 to include NIR simulations as well as masking on each wavelength matching telescope cadences. The simulation has also been parallelized to improve efficiency.
 
 ###################################################
 
