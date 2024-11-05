@@ -146,3 +146,4 @@ if __name__ == '__main__':
     net.load_state_dict(chp['state_dict'])
     test_loss = utils.test_result(net, dim, test_loader, args.sample_type, args.sample_tp, shuffle=False, k_iwae=1)
     print(f'best_val_loss: {best_val_loss}, test_loss: {test_loss.cpu().detach().numpy()}')
+    utils.get_prediction(net, dim, test_loader)

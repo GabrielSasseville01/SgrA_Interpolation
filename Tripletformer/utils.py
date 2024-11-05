@@ -86,7 +86,7 @@ def evaluate_model(
     )
 
 
-def get_dataset(batch_size, dataset, test_batch_size=5, filter_anomalies=True):
+def get_dataset(batch_size, dataset, test_batch_size=2, filter_anomalies=True):
     """
     Load and prepare a specified dataset for training, validation, and testing, returning data loaders for each.
 
@@ -138,7 +138,7 @@ def get_dataset(batch_size, dataset, test_batch_size=5, filter_anomalies=True):
     test_data = torch.from_numpy(test_data).float()
 
     train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_data, batch_size=2, shuffle=False)
+    test_dataloader = DataLoader(test_data, batch_size=test_batch_size, shuffle=False)
     val_dataloader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
 
     
@@ -249,7 +249,7 @@ def test_result(
     return -avg_loglik/train_n
 
 
-def get_prediction(
+def batch_prediction(
     net,
     dim,
     test_loader,
@@ -258,55 +258,31 @@ def get_prediction(
     with torch.no_grad():
         for test_batch in test_loader:
             test_batch = test_batch.to(device)
-            # In our case the original mask is a np.ones of the same size, because we have "observed" (simulated) all data points
+
+            # Create context and reconstruction masks as per the original code
             original_mask = torch.ones(test_batch[:, :, dim:2 * dim].shape).to(device)
-      
             subsampled_mask = test_batch[:, :, dim:2 * dim]
-
             recon_mask = original_mask - subsampled_mask
-            
-            context_y = torch.cat((
-                test_batch[:, :, :dim] * subsampled_mask, subsampled_mask
-            ), -1)
+            context_y = torch.cat((test_batch[:, :, :dim] * subsampled_mask, subsampled_mask), -1)
 
-            px = net.inference(
-                test_batch[:, :, -1],
-                context_y,
-                test_batch[:, :, -1],
-                torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1)
+            # Compute unsupervised loss and update
+            px, time_indices, channel_indices = net.inference(
+                test_batch[:, :, -1], # Time progression indicator
+                context_y,             # Observed values and mask. 0's correspond to masked.
+                test_batch[:, :, -1], # Time progression indicator
+                torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1) # Ground truth for masked values and mask. 1's correspond to masked.
             )
+            # means = px.mean.view(px.mean.size(0), px.mean.size(1))
+            # logvars = px.logvar.view(px.logvar.size(0), px.logvar.size(1))
+            means = px.mean
+            logvars = px.logvar
+            std = torch.sqrt(torch.exp(logvars))
 
-            mean = px.mean
-            logvar = px.logvar
+            return means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
+            
 
-            obs_len = int(recon_mask.sum())
-
-            # Step 1: Find indices of 1s in reconstruction
-            reconstruction_indices = recon_mask.nonzero(as_tuple=True)
-
-            # Step 2: Extract the timesteps and channels
-            # Nonzero returns indices as (batch, seq_len, channel), we need to process this
-            timesteps = reconstruction_indices[1]  # seq_len indices
-            channels_indices = reconstruction_indices[2]  # channel indices
-
-            # Step 3: Create a structured mapping of predictions
-            predictions_by_channel = {ch: [] for ch in range(dim)}
-
-            # Iterate through the predictions and fill the structure
-            for i in range(obs_len):
-                # Each prediction corresponds to a (timesteps, channels) index
-                t_index = timesteps[i].item()  # Get the timestep
-                ch_index = channels_indices[i].item()  # Get the channel index
-                prediction_value = mean[0, i, 0].item()  # Get the prediction value (squeezed out the unnecessary dimensions)
-                
-                predictions_by_channel[ch_index].append((t_index, prediction_value))
-
-            # Now predictions_by_channel contains the mappings
-            for ch, values in predictions_by_channel.items():
-                print(f"Channel {ch}: {values}")
-
-            # print(predictions_by_channel.shape)
 
             break
+        
+    # return mean, logvar
 
-    return mean, logvar
