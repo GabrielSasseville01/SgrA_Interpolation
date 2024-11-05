@@ -28,7 +28,7 @@ parser.add_argument('--decoder-dim', type=int, default=128)
 parser.add_argument('--nlayers', type=int, default=1)
 parser.add_argument('--sample-type', type=str, default='random')
 parser.add_argument('--experiment-id', type=str, default=None)
-parser.add_argument('--early-stop', type=int, default=30)
+parser.add_argument('--max-early-stop', type=int, default=30)
 
 args = parser.parse_args()
 print(' '.join(sys.argv))
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     # Track best validation loss and starting epoch
     best_val_loss = 10000
     start_epoch = 1
-    early_stop = args.early_stop
+    max_early_stop = args.max_early_stop
 
     # Load checkpoint if it exists
     if os.path.isfile(checkpoint_path):
@@ -134,7 +134,7 @@ if __name__ == '__main__':
                 early_stop = 0
             else:
                 early_stop += 1
-            if early_stop == 30:
+            if early_stop == max_early_stop:
                 print("Early stopping due to no improvement in validation metric for 30 epochs.")
                 break
             scheduler.step(val_loss)
