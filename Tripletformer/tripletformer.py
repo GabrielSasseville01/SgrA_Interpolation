@@ -96,22 +96,61 @@ class TRIPLETFORMER(nn.Module):
         C = torch.ones(mk.size(), dtype=torch.int64).cumsum(-1) - 1 
         C = C.to(self.device) # Channel index indicator. (Batch, t, dim) where each tensor is [0, 1, 2, 3]
 
-        mk_bool = mk.to(torch.bool)
+        mk_bool = mk.to(torch.bool) # Reconstruction mask as boolean values
 
-        full_len = tau.size(1)*self.dim
-        pad = lambda v: F.pad(v, [0, full_len - len(v)], value=0)
+        full_len = tau.size(1)*self.dim # Timesteps * dim. 960*4
+        pad = lambda v: F.pad(v, [0, full_len - len(v)], value=0) # Padding function. Pads with 0's on the right until full_len
 
+        # Keep only values to be reconstructed. Pad with 0's. (Batch, t, dim) --> (Batch, full_len)
+        # Iterate over batches. r = tau/U/mk/C for given batch. m = mask for given batch.
+        # r[m] = values of r where m is True flattened into one dimension.
+        # pad(r[m]) = r[m] padded with zeros until full_len
+        # Final tensors should have shape (Batch, full_len) 
         tau = torch.stack([pad(r[m]) for r, m in zip(tau, mk_bool)]).contiguous()
         U = torch.stack([pad(r[m]) for r, m in zip(U, mk_bool)]).contiguous()
         mk = torch.stack([pad(r[m]) for r, m in zip(mk, mk_bool)]).contiguous()
         C = torch.stack([pad(r[m]) for r, m in zip(C, mk_bool)]).contiguous()
-        C_ = C
+        C_ = C # Channel indicators for each reconstructed value
+
         C = torch.nn.functional.one_hot(C, num_classes =self.dim)
 
-        target_context = torch.cat([tau[:,:,None], C], -1).contiguous()
+        # Here is an example of the above code
+        # Original C is after line 97:
+        # tensor([[[0, 1, 2, 3],
+        #         [0, 1, 2, 3]]])
+        # mk_bool is:
+        # tensor([[[ True, False, False,  True],
+        #         [False,  True,  True, False]]])
+        # C after Padding is (also corresponds to C_):
+        # tensor([[0, 3, 1, 2, 0, 0, 0, 0]])
+        # C after one-hot is:
+        # tensor([[[1, 0, 0, 0],
+        #         [0, 0, 0, 1],
+        #         [0, 1, 0, 0],
+        #         [0, 0, 1, 0],
+        #         [1, 0, 0, 0],
+        #         [1, 0, 0, 0],
+        #         [1, 0, 0, 0],
+        #         [1, 0, 0, 0]]])
+        
+        target_context = torch.cat([tau[:,:,None], C], -1).contiguous() # Adds time indicator to first element of each one-hot encoded vector
         target_mask = torch.stack([C_, mk], -1)
 
-        obs_len = torch.max(target_mask[:,:,1].sum(-1)).to(torch.int64)
+        # In the previous example, target_mask would be:
+        # tensor(
+        # [[[0., 1.],
+        #  [3., 1.],
+        #  [1., 1.],
+        #  [2., 1.],
+        #  [0., 0.],
+        #  [0., 0.],
+        #  [0., 0.],
+        #  [0., 0.]]])
+        # And obs_len would be 4
+    
+        
+        obs_len = torch.max(target_mask[:,:,1].sum(-1)).to(torch.int64) # number of points to predict
+        # Truncate the padding to the number of points to predict
         target_context = target_context[:, :obs_len]
         target_mask = target_mask[:, :obs_len]
         target_vals = U[:,:obs_len]
