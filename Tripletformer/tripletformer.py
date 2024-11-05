@@ -90,11 +90,11 @@ class TRIPLETFORMER(nn.Module):
     ):
         loss_info = LossInfo()
 
-        tau = target_x[:,:,None].repeat(1,1,self.dim)
-        U = target_y[:,:,:self.dim]
-        mk = target_y[:,:,self.dim:]
-        C = torch.ones(mk.size(), dtype=torch.int64).cumsum(-1) - 1
-        C = C.to(self.device)
+        tau = target_x[:,:,None].repeat(1,1,self.dim) # Time indicator
+        U = target_y[:,:,:self.dim] # Ground truths for values to be predicted
+        mk = target_y[:,:,self.dim:] # Reconstruction mask. 1's correspond to values to be predicted.
+        C = torch.ones(mk.size(), dtype=torch.int64).cumsum(-1) - 1 
+        C = C.to(self.device) # Channel index indicator. (Batch, t, dim) where each tensor is [0, 1, 2, 3]
 
         mk_bool = mk.to(torch.bool)
 

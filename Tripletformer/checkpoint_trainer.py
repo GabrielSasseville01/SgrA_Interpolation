@@ -93,8 +93,10 @@ if __name__ == '__main__':
 
             # Compute unsupervised loss and update
             loss_info = net.compute_unsupervised_loss(
-                train_batch[:, :, -1], context_y, train_batch[:, :, -1],
-                torch.cat((train_batch[:, :, :dim] * recon_mask, recon_mask), -1)
+                train_batch[:, :, -1], # Time progression indicator
+                context_y,             # Observed values and mask. 0's correspond to masked.
+                train_batch[:, :, -1], # Time progression indicator
+                torch.cat((train_batch[:, :, :dim] * recon_mask, recon_mask), -1) # Ground truth for masked values and mask. 1's correspond to masked.
             )
             optimizer.zero_grad()
             loss_info.composite_loss.backward()

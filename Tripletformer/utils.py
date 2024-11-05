@@ -87,8 +87,35 @@ def evaluate_model(
 
 
 def get_dataset(batch_size, dataset, test_batch_size=5, filter_anomalies=True):
+    """
+    Load and prepare a specified dataset for training, validation, and testing, returning data loaders for each.
+
+    Args:
+        batch_size (int): Batch size for training and validation data loaders.
+        dataset (str): Name of the dataset to load. Options are 'physionet', 'mimiciii', 'PenDigits', 
+                       'physionet2019', and 'PhonemeSpectra'.
+        test_batch_size (int, optional): Batch size for the test data loader. Default is 5.
+        filter_anomalies (bool, optional): Placeholder for future use, currently does not affect data loading.
+
+    Returns:
+        dict: A dictionary containing:
+            - "train_dataloader": DataLoader for the training set.
+            - "val_dataloader": DataLoader for the validation set.
+            - "test_dataloader": DataLoader for the test set.
+            - "input_dim": Integer representing the input dimension for the data model.
+
+    Raises:
+        FileNotFoundError: If the specified dataset is not found in the file paths.
+        ValueError: If an unrecognized dataset name is provided.
+
+    Example:
+        data = get_dataset(batch_size=32, dataset='physionet')
+        train_loader = data['train_dataloader']
+    """
     if dataset == 'physionet':
         x = np.load("./data_lib/physionet.npz")
+    elif dataset == 'sgrA':
+        x = np.load("./data_lib/sgrA.npz")
     elif dataset == 'mimiciii':
         x = np.load("~/Desktop/codes_github/tripletformer/data_lib/mimiciii.npz")
     elif dataset == 'PenDigits':
@@ -102,7 +129,8 @@ def get_dataset(batch_size, dataset, test_batch_size=5, filter_anomalies=True):
     input_dim = (x['train'].shape[-1] - 1)//2
     train_data, val_data, test_data = x['train'], x['val'], x['test']
 
-
+    # Shape is Number of Samples, Number of Timesteps, Number of Variables (Dimensions) x 2
+    # Last dimension is x2 because first half is the value and second half is the mask (0 for unobserved, 1 for observed)
     print(train_data.shape, val_data.shape, test_data.shape)
 
     train_data = torch.from_numpy(train_data).float()
@@ -133,13 +161,14 @@ def subsample_timepoints(mask, percentage_tp_to_sample=None, shuffle=False):
         seed = np.random.randint(0, 100000)
         np.random.seed(seed)
     for i in range(mask.size(0)):
+        # mask is of shape Batch size, timesteps, features
         # take mask for current training sample and sum over all features --
         # figure out which time points don't have any measurements at all in this batch
-        current_mask = mask[i].sum(-1).cpu()
-        non_missing_tp = np.where(current_mask > 0)[0]
-        n_tp_current = len(non_missing_tp)
-        n_to_sample = max(1, int(n_tp_current * percentage_tp_to_sample))
-        n_to_sample = min((n_tp_current - 1), n_to_sample)
+        current_mask = mask[i].sum(-1).cpu() # sums over mask dimension, resulting in an array of length Timesteps where each entry is the number of unmasked features for given timestep
+        non_missing_tp = np.where(current_mask > 0)[0] # indices where the previous is nonzero
+        n_tp_current = len(non_missing_tp) # amount of non-zeros
+        n_to_sample = max(1, int(n_tp_current * percentage_tp_to_sample)) # number of points to subsample either 1 or 10% of the number of non-zeros
+        n_to_sample = min((n_tp_current - 1), n_to_sample) # makes sure the previous value is not greater than the number of non-zeros
         subsampled_idx = sorted(
             np.random.choice(non_missing_tp, n_to_sample, replace=False))
         tp_to_set_to_zero = np.setdiff1d(non_missing_tp, subsampled_idx)
@@ -187,22 +216,17 @@ def test_result(
     with torch.no_grad():
         for train_batch in train_loader:
             train_batch = train_batch.to(device)
-            if sample_type == 'random':
-                subsampled_mask = subsample_timepoints(
-                    train_batch[:, :, dim:2 * dim].clone(),
-                    sample_tp,
-                    shuffle=shuffle,
-                )
-            elif sample_type == 'bursts':
-                subsampled_mask = subsample_bursts(
-                    train_batch[:, :, dim:2 * dim].clone(),
-                    sample_tp,
-                    shuffle=shuffle,
-                )
-            recon_mask = train_batch[:, :, dim:2 * dim] - subsampled_mask
+            # In our case the original mask is a np.ones of the same size, because we have "observed" (simulated) all data points
+            original_mask = torch.ones(train_batch[:, :, dim:2 * dim].shape).to(device)
+    
+            subsampled_mask = train_batch[:, :, dim:2 * dim]
+
+            recon_mask = original_mask - subsampled_mask
+            
             context_y = torch.cat((
                 train_batch[:, :, :dim] * subsampled_mask, subsampled_mask
             ), -1)
+
             loss_info = net.compute_unsupervised_loss(
                 train_batch[:, :, -1],
                 context_y,
@@ -213,18 +237,76 @@ def test_result(
             num_context_points = recon_mask.sum().item()
             mse += loss_info.mse * num_context_points
             mae += loss_info.mae * num_context_points
-           # mean_mse += loss_info.mean_mse * num_context_points
-           # mean_mae += loss_info.mean_mae * num_context_points
             avg_loglik += loss_info.loglik * num_context_points
-            # avg_loglik += loss_info.mogloglik * num_context_points
             train_n += num_context_points
-    print(
-        'nll: {:.4f}, mse: {:.4f}, mae: {:.4f},'.format(
-            - avg_loglik / train_n,
-            mse / train_n,
-            mae / train_n,
-           # mean_mse / train_n,
-           # mean_mae / train_n,
-        )
-    )
+    # print(
+    #     'nll: {:.4f}, mse: {:.4f}, mae: {:.4f},'.format(
+    #         - avg_loglik / train_n,
+    #         mse / train_n,
+    #         mae / train_n,
+    #     )
+    # )
     return -avg_loglik/train_n
+
+
+def get_prediction(
+    net,
+    dim,
+    test_loader,
+    device='cuda'):
+
+    with torch.no_grad():
+        for test_batch in test_loader:
+            test_batch = test_batch.to(device)
+            # In our case the original mask is a np.ones of the same size, because we have "observed" (simulated) all data points
+            original_mask = torch.ones(test_batch[:, :, dim:2 * dim].shape).to(device)
+      
+            subsampled_mask = test_batch[:, :, dim:2 * dim]
+
+            recon_mask = original_mask - subsampled_mask
+            
+            context_y = torch.cat((
+                test_batch[:, :, :dim] * subsampled_mask, subsampled_mask
+            ), -1)
+
+            px = net.inference(
+                test_batch[:, :, -1],
+                context_y,
+                test_batch[:, :, -1],
+                torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1)
+            )
+
+            mean = px.mean
+            logvar = px.logvar
+
+            obs_len = int(recon_mask.sum())
+
+            # Step 1: Find indices of 1s in reconstruction
+            reconstruction_indices = recon_mask.nonzero(as_tuple=True)
+
+            # Step 2: Extract the timesteps and channels
+            # Nonzero returns indices as (batch, seq_len, channel), we need to process this
+            timesteps = reconstruction_indices[1]  # seq_len indices
+            channels_indices = reconstruction_indices[2]  # channel indices
+
+            # Step 3: Create a structured mapping of predictions
+            predictions_by_channel = {ch: [] for ch in range(dim)}
+
+            # Iterate through the predictions and fill the structure
+            for i in range(obs_len):
+                # Each prediction corresponds to a (timesteps, channels) index
+                t_index = timesteps[i].item()  # Get the timestep
+                ch_index = channels_indices[i].item()  # Get the channel index
+                prediction_value = mean[0, i, 0].item()  # Get the prediction value (squeezed out the unnecessary dimensions)
+                
+                predictions_by_channel[ch_index].append((t_index, prediction_value))
+
+            # Now predictions_by_channel contains the mappings
+            for ch, values in predictions_by_channel.items():
+                print(f"Channel {ch}: {values}")
+
+            # print(predictions_by_channel.shape)
+
+            break
+
+    return mean, logvar
