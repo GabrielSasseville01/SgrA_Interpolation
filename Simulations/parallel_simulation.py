@@ -6,7 +6,7 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 
 class Simulation:
-    def __init__(self, epoch, sampling_rate, VarDict, num_simulations, batch_size=100, checkpoint_file="checkpoint.pkl", worker_id=None):
+    def __init__(self, epoch, sampling_rate, VarDict, num_simulations, batch_size=100, checkpoint_file="./checkpoint/checkpoint.pkl", worker_id=None):
         self.epoch = epoch
         self.sampling_rate = sampling_rate
         self.VarDict = VarDict
@@ -16,7 +16,7 @@ class Simulation:
 
         # Update checkpoint file with worker ID to ensure uniqueness
         if self.worker_id is not None:
-            self.checkpoint_file = f"checkpoint_worker_{self.worker_id}.pkl"
+            self.checkpoint_file = f"./checkpoint/checkpoint_worker_{self.worker_id}.pkl"
         else:
             self.checkpoint_file = checkpoint_file
         
@@ -31,7 +31,7 @@ class Simulation:
         time = self.epoch * self.sampling_rate
 
         # Each worker has its own ParticleSystem based on sim_id for unique runs
-        run = model.ParticleSystem(f"run_{sim_id}.particle", delPoints=1000)
+        run = model.ParticleSystem(f"run.particle", delPoints=1000)
 
         run.ParamSet(self.VarDict, PickParticle=True)
         run.params_model.update({"noise_22GHz": 0.02})
@@ -63,9 +63,9 @@ class Simulation:
     def save_data_batch(self, batch_data, batch_id):
         # Use worker ID in the batch file name to prevent overwriting
         if self.worker_id is not None:
-            file_name = f"data_batch_worker_{self.worker_id}_{batch_id}.pkl"
+            file_name = f"./saved_simulations/data_batch_worker_{self.worker_id}_{batch_id}.pkl"
         else:
-            file_name = f"data_batch_{batch_id}.pkl"
+            file_name = f"./saved_simulations/data_batch_{batch_id}.pkl"
         
         with open(file_name, "wb") as f:
             pickle.dump(batch_data, f)
@@ -90,47 +90,79 @@ class Simulation:
         else:
             print(f"No checkpoint found for worker {self.worker_id}. Starting from the beginning.")
 
+    @staticmethod
+    def load_data_batch(batch_id, worker_id=None):
+        if worker_id is not None:
+            file_name = f"./saved_simulations/data_batch_worker_{worker_id}_{batch_id}.pkl"
+        else:
+            file_name = f"./saved_simulations/data_batch_{batch_id}.pkl"
+        
+        with open(file_name, "rb") as f:
+            return pickle.load(f)
 
-def run_parallel_simulations(epoch, sampling_rate, VarDict, num_simulations, batch_size, num_workers):
-    # Divide the total number of simulations among workers
-    chunk_size = num_simulations // num_workers
-    ranges = [(i * chunk_size, (i + 1) * chunk_size) for i in range(num_workers)]
+    @staticmethod
+    def load_all_data(num_batches, num_workers):
+        all_data = []
+        for worker_id in range(num_workers):
+            for batch_id in range(num_batches):
+                try:
+                    batch_data = Simulation.load_data_batch(batch_id, worker_id)
+                    all_data.extend(batch_data)
+                except FileNotFoundError:
+                    print(f"Batch {batch_id} for worker {worker_id} not found.")
+        return all_data
 
-    with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        futures = [
-            executor.submit(run_batch_for_worker, epoch, sampling_rate, VarDict, start, end, batch_size, worker_id)
-            for worker_id, (start, end) in enumerate(ranges)
-        ]
-        for future in futures:
-            future.result()  # Wait for all processes to complete
+    @staticmethod
+    def plot_simulation(dataset, sim_number):
+        fig, axs = plt.subplots(4, 1, figsize=(12, 18))
 
-def run_batch_for_worker(epoch, sampling_rate, VarDict, start, end, batch_size, worker_id):
-    # Create a separate Simulation instance for each worker
-    worker_simulation = Simulation(
-        epoch=epoch, 
-        sampling_rate=sampling_rate, 
-        VarDict=VarDict, 
-        num_simulations=end - start, 
-        batch_size=batch_size, 
-        worker_id=worker_id
-    )
-    
-    worker_simulation.run_and_save_simulations()
+        wavelengths = dataset.keys()
+        for i, wavelength in enumerate(wavelengths):
+            xdata_unmasked = dataset[wavelength]['xdata_unmasked']
+            xdata_masked = dataset[wavelength]['xdata_masked']
+            ydata_unmasked = dataset[wavelength]['ydata_unmasked']
+            ydata_masked = dataset[wavelength]['ydata_masked']
 
-# Parameters for the simulation
-epoch = 960.0
-sampling_rate = 1
-num_simulations = 100000  # Adjust the number of simulations if needed
-batch_size = 50  # Batch size for saving
-VarDict = {
-    "PSD_slope_fast": "fast_a1", "PSD_break_fast": "fast_b1",
-    "mu_fast": "fast_mu", "sig_fast": "fast_sig", "PSD_slope_slow": "a1", "PSD_break_slow": "b1",
-    "mu_slow": "mu", "sig_slow": "sig", "B_0": "B_0", "gamma": "gamma", "ampfac": "ampfac",
-    "size_0": "size_0", "noise_NIR": "vlt_noise", "X_offset": "I_offset", "rate_conv": "rate_conv",
-    "eff_area": "I_eff_area", "model_gain": "a", "f0_B": "f_0_B", "f0_theta": "f_0_size",
-    "noise_345GHz": "APEX_noise", "noise_230GHz": "SMA_noise", "noise_340GHz": "APEX_noise"
-}
+            axs[i].scatter(xdata_unmasked, ydata_unmasked, label='Unmasked', s=5)
+            axs[i].scatter(xdata_masked, ydata_masked, label='Masked', s=5)
+            
+            axs[i].set_title(f'{wavelength} Data')
+            axs[i].set_xlabel('Time')
+            axs[i].set_ylabel('Flux')
+            axs[i].legend()
 
-# Run the parallel simulations with 4 workers
-num_workers = 4
-run_parallel_simulations(epoch, sampling_rate, VarDict, num_simulations, batch_size, num_workers)
+        fig.suptitle(f'Simulation {sim_number}', fontsize=16)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.show()
+
+    @staticmethod
+    def plot_all_simulations(all_data):
+        for i, dataset in enumerate(all_data):
+            Simulation.plot_simulation(dataset, i)
+
+    @staticmethod
+    def run_parallel_simulations(epoch, sampling_rate, VarDict, num_simulations, batch_size, num_workers):
+        # Divide the total number of simulations among workers
+        chunk_size = num_simulations // num_workers
+        ranges = [(i * chunk_size, (i + 1) * chunk_size) for i in range(num_workers)]
+
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = [
+                executor.submit(Simulation.run_batch_for_worker, epoch, sampling_rate, VarDict, start, end, batch_size, worker_id)
+                for worker_id, (start, end) in enumerate(ranges)
+            ]
+            for future in futures:
+                future.result()  # Wait for all processes to complete
+
+    def run_batch_for_worker(epoch, sampling_rate, VarDict, start, end, batch_size, worker_id):
+        # Create a separate Simulation instance for each worker
+        worker_simulation = Simulation(
+            epoch=epoch, 
+            sampling_rate=sampling_rate, 
+            VarDict=VarDict, 
+            num_simulations=end - start, 
+            batch_size=batch_size, 
+            worker_id=worker_id
+        )
+        
+        worker_simulation.run_and_save_simulations()
