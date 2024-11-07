@@ -272,17 +272,12 @@ def batch_prediction(
                 test_batch[:, :, -1], # Time progression indicator
                 torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1) # Ground truth for masked values and mask. 1's correspond to masked.
             )
-            # means = px.mean.view(px.mean.size(0), px.mean.size(1))
-            # logvars = px.logvar.view(px.logvar.size(0), px.logvar.size(1))
+           
             means = px.mean
             logvars = px.logvar
             std = torch.sqrt(torch.exp(logvars))
 
             return means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
-            
-
-
-            break
         
-    # return mean, logvar
+    
 
