@@ -254,7 +254,7 @@ def batch_prediction(
     dim,
     test_loader,
     device='cuda'):
-
+    tmp = 0
     with torch.no_grad():
         for test_batch in test_loader:
             test_batch = test_batch.to(device)
@@ -276,8 +276,9 @@ def batch_prediction(
             means = px.mean
             logvars = px.logvar
             std = torch.sqrt(torch.exp(logvars))
-
-            return means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
+            if tmp == 10:
+                return means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
+            tmp += 1
         
     
 

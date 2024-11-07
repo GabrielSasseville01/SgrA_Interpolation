@@ -1,4 +1,5 @@
 import argparse
+from collections import Counter
 import os
 import numpy as np
 import torch
@@ -60,12 +61,15 @@ if __name__ == '__main__':
     net.load_state_dict(chp['state_dict'])
 
     means, stds, time_indices, channel_indices, test_batch = utils.batch_prediction(net, dim, test_loader)
+    print('Length of means', len(means))
+    print('Length of channel indices', len(channel_indices))
 
     # Create subplots for each channel
     fig, axs = plt.subplots(dim, 1, figsize=(10, 2 * dim), sharex=True)
     timesteps = np.arange(1, test_batch.size(0) + 1)
-
+    total_pred_points = 0
     for mychan in range(dim):
+        print(mychan)
         ax = axs[mychan]
         
         # Plot observed values in orange
@@ -73,7 +77,7 @@ if __name__ == '__main__':
             timesteps[np.where(test_batch[:, mychan + dim] == 1)],
             test_batch[:, mychan][np.where(test_batch[:, mychan + dim] == 1)],
             s=0.5,
-            color='orange',
+            color='blue',
             label='Observed'
         )
         
@@ -82,25 +86,68 @@ if __name__ == '__main__':
             timesteps[np.where(test_batch[:, mychan + dim] == 0)],
             test_batch[:, mychan][np.where(test_batch[:, mychan + dim] == 0)],
             s=0.5,
-            color='blue',
-            label='Unobserved'
+            color='orange',
+            label='Masked'
         )
         
         # Plot predicted means and uncertainty bounds for the current channel
         indices = np.where(channel_indices == mychan)
-        ax.plot(
-            time_indices[indices],
-            means[indices],
+        total_pred_points += len(indices[0])
+        print('Amount of points to predict: ', len(indices[0]), 'for channel: ', mychan)
+        times = time_indices[indices]
+        mymeans = means[indices]
+
+        print('Length of means: ', len(mymeans))
+        # Flatten the array in case it's multidimensional
+        mymeans_flat = mymeans.flatten()
+
+        # Find the most common value
+        unique_values, counts = np.unique(mymeans_flat, return_counts=True)
+        most_frequent_value = unique_values[np.argmax(counts)]
+
+        print("Most frequent value:", most_frequent_value)
+        # print("Count:", counts[np.argmax(counts)])
+        
+        # total_pred_points += counts[np.argmax(counts)]
+        otheridx = np.where(np.abs(most_frequent_value - mymeans) > 1e-2)
+        print('Count:', len(mymeans) - len(mymeans[otheridx]))
+        print('Mean of the means: ', np.mean(np.array(mymeans[otheridx])))
+        # print(otheridx)
+        # ax.scatter(
+        #     time_indices[indices],
+        #     means[indices],
+        #     linewidth=1,
+        #     color='red',
+        #     label='Predicted Mean'
+        # )
+        ax.scatter(
+            times[otheridx],
+            mymeans[otheridx],
             linewidth=1,
             color='red',
-            label='Predicted Mean'
+            label='Predicted Mean',
+            s=0.5
         )
+        # if mychan == 3:
+        #     print(mymeans)
+        # total_pred_points += len(mymeans[otheridx])
+        # if mychan == 3:
+        #     print(means[indices])
         
         # Fill area for ±1 standard deviation
+        # ax.fill_between(
+        #     time_indices[indices],
+        #     (means[indices] - stds[indices]).flatten(),
+        #     (means[indices] + stds[indices]).flatten(),
+        #     alpha=0.2,
+        #     color='red',
+        #     label='±1 Std Dev'
+        # )
+        mystds = stds[indices]
         ax.fill_between(
-            time_indices[indices],
-            (means[indices] - stds[indices]).flatten(),
-            (means[indices] + stds[indices]).flatten(),
+            times[otheridx],
+            (mymeans[otheridx] - mystds[otheridx]).flatten(),
+            (mymeans[otheridx] + mystds[otheridx]).flatten(),
             alpha=0.2,
             color='red',
             label='±1 Std Dev'
@@ -124,6 +171,7 @@ if __name__ == '__main__':
     # most_frequent = mode(means).mode[0]
 
     # print(means.shape)
+    print('Total pred points is:', total_pred_points)
 
     plt.savefig('figures/test.png')
     # print(timesteps)
