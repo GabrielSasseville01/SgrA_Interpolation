@@ -113,8 +113,12 @@ class Simulation:
         return all_data
 
     @staticmethod
-    def plot_simulation(dataset, sim_number):
-        fig, axs = plt.subplots(4, 1, figsize=(12, 18))
+    def plot_simulation(dataset, sim_number, col=1):
+        if col == 1:
+            fig, axs = plt.subplots(4, 1, figsize=(12, 18))
+        else:
+            fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+            axs = axs.flatten()
 
         wavelengths = dataset.keys()
         for i, wavelength in enumerate(wavelengths):
@@ -123,7 +127,7 @@ class Simulation:
             ydata_unmasked = dataset[wavelength]['ydata_unmasked']
             ydata_masked = dataset[wavelength]['ydata_masked']
 
-            axs[i].scatter(xdata_unmasked, ydata_unmasked, label='Unmasked', s=5)
+            axs[i].scatter(xdata_unmasked, ydata_unmasked, label='Observed', s=5)
             axs[i].scatter(xdata_masked, ydata_masked, label='Masked', s=5)
             
             axs[i].set_title(f'{wavelength} Data')
