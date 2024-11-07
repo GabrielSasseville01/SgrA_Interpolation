@@ -2314,6 +2314,12 @@ class DataGenerator:
         self.ground_idx_start = None
 
         self.data = {
+            "X": {
+                "xdata_unmasked": None,
+                "xdata_masked": None,
+                "ydata_unmasked": None,
+                "ydata_masked": None
+            },
             "NIR": {
                 "xdata_unmasked": None,
                 "xdata_masked": None,
@@ -2332,12 +2338,6 @@ class DataGenerator:
                 "ydata_unmasked": None,
                 "ydata_masked": None
             },
-            "X": {
-                "xdata_unmasked": None,
-                "xdata_masked": None,
-                "ydata_unmasked": None,
-                "ydata_masked": None
-            }
         }
 
     def ModelSetup(self):
