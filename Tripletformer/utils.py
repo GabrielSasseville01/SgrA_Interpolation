@@ -116,6 +116,8 @@ def get_dataset(batch_size, dataset, test_batch_size=2, filter_anomalies=True):
         x = np.load("./data_lib/physionet.npz")
     elif dataset == 'sgrA':
         x = np.load("./data_lib/sgrA.npz")
+    elif dataset == 'randomwalk':
+        x = np.load("./data_lib/simulated_random_walk_data.npz")
     elif dataset == 'mimiciii':
         x = np.load("~/Desktop/codes_github/tripletformer/data_lib/mimiciii.npz")
     elif dataset == 'PenDigits':
@@ -276,7 +278,7 @@ def batch_prediction(
             means = px.mean
             logvars = px.logvar
             std = torch.sqrt(torch.exp(logvars))
-            if tmp == 10:
+            if tmp == 50:
                 return means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
             tmp += 1
         

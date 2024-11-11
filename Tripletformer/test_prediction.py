@@ -56,8 +56,9 @@ if __name__ == '__main__':
     test_loader = data_obj["test_dataloader"]
     dim = data_obj["input_dim"]
     net = models.load_network(args, dim, device=device).to(device)
-
-    chp = torch.load('saved_models/sgrA_982081.h5')
+    
+    chp = torch.load(f'./saved_models/{args.dataset}_{args.experiment_id}.h5')
+    # chp = torch.load('saved_models/sgrA_982081.h5')
     net.load_state_dict(chp['state_dict'])
 
     means, stds, time_indices, channel_indices, test_batch = utils.batch_prediction(net, dim, test_loader)
@@ -69,7 +70,7 @@ if __name__ == '__main__':
     timesteps = np.arange(1, test_batch.size(0) + 1)
     total_pred_points = 0
     for mychan in range(dim):
-        print(mychan)
+        print('Interpolation of Channel: ', mychan)
         ax = axs[mychan]
         
         # Plot observed values in orange
@@ -120,6 +121,8 @@ if __name__ == '__main__':
         #     color='red',
         #     label='Predicted Mean'
         # )
+        print('Time indices of artefacts: ', np.setdiff1d(times, times[otheridx]))
+        print('Length of this array of indices: ', len(np.setdiff1d(times, times[otheridx])))
         ax.scatter(
             times[otheridx],
             mymeans[otheridx],
