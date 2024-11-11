@@ -2768,13 +2768,15 @@ class DataGenerator:
             self.data[key]['ydata_masked'] = np.concatenate([y_masked, y_unmasked[remove_indices]])
 
     
-    def masks(self, percentage_removed):
+    def masks(self, percentage_removed=0.0):
 
         self.submm_mask()
         self.NIR_mask()
         self.IR_mask()
         self.X_mask()
-        self.add_noise(percentage_removed)
+
+        if percentage_removed != 0:
+            self.add_noise(percentage_removed)
 
         return self.data
 
