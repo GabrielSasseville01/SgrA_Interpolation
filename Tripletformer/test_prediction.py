@@ -123,9 +123,17 @@ if __name__ == '__main__':
         # )
         print('Time indices of artefacts: ', np.setdiff1d(times, times[otheridx]))
         print('Length of this array of indices: ', len(np.setdiff1d(times, times[otheridx])))
+        # ax.scatter(
+        #     times[otheridx],
+        #     mymeans[otheridx],
+        #     linewidth=1,
+        #     color='red',
+        #     label='Predicted Mean',
+        #     s=0.5
+        # )
         ax.scatter(
-            times[otheridx],
-            mymeans[otheridx],
+            times,
+            mymeans,
             linewidth=1,
             color='red',
             label='Predicted Mean',
@@ -146,11 +154,20 @@ if __name__ == '__main__':
         #     color='red',
         #     label='±1 Std Dev'
         # )
+        # mystds = stds[indices]
+        # ax.fill_between(
+        #     times[otheridx],
+        #     (mymeans[otheridx] - mystds[otheridx]).flatten(),
+        #     (mymeans[otheridx] + mystds[otheridx]).flatten(),
+        #     alpha=0.2,
+        #     color='red',
+        #     label='±1 Std Dev'
+        # )
         mystds = stds[indices]
         ax.fill_between(
-            times[otheridx],
-            (mymeans[otheridx] - mystds[otheridx]).flatten(),
-            (mymeans[otheridx] + mystds[otheridx]).flatten(),
+            times,
+            (mymeans - mystds).flatten(),
+            (mymeans + mystds).flatten(),
             alpha=0.2,
             color='red',
             label='±1 Std Dev'
