@@ -63,6 +63,7 @@ if __name__ == '__main__':
     best_val_loss = 10000
     start_epoch = 1
     max_early_stop = args.max_early_stop
+    early_stop = 0
 
     # Load checkpoint if it exists
     if os.path.isfile(checkpoint_path):

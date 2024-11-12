@@ -69,6 +69,10 @@ if __name__ == '__main__':
     fig, axs = plt.subplots(dim, 1, figsize=(10, 2 * dim), sharex=True)
     timesteps = np.arange(1, test_batch.size(0) + 1)
     total_pred_points = 0
+
+    if dim == 1:
+        axs = [axs]
+
     for mychan in range(dim):
         print('Interpolation of Channel: ', mychan)
         ax = axs[mychan]
