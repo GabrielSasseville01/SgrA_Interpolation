@@ -100,10 +100,10 @@ if __name__ == '__main__':
                 torch.cat((train_batch[:, :, :dim] * recon_mask, recon_mask), -1) # Ground truth for masked values and mask. 1's correspond to masked.
             )
             optimizer.zero_grad()
-            loss_info.composite_loss.backward()
+            loss_info.composite_loss.backward() # Composite: NLL + MSE
             torch.nn.utils.clip_grad_norm_(net.parameters(), 1)
             optimizer.step()
-            train_loss += loss_info.composite_loss.item() * batch_len
+            train_loss += loss_info.composite_loss.item() * batch_len 
             avg_loglik += loss_info.loglik.item() * batch_len
             mse += loss_info.mse * batch_len
             mae += loss_info.mae * batch_len
@@ -113,8 +113,11 @@ if __name__ == '__main__':
         train_losses = np.append(train_losses, -avg_loglik / train_n)
         np.save(train_loss_path, train_losses)
         
-        print('Epoch {} completed'.format(itr))
-        print('Training loss: {:.4f}'.format(-avg_loglik / train_n))
+        print('\nEpoch {} completed'.format(itr))
+        # print('Training loss: {:.4f}'.format(-avg_loglik / train_n))
+        print('Training loss: {:.4f}'.format(train_loss / train_n))
+        print('NLL: {:.4f}'.format(-avg_loglik / train_n))
+        print('MSE: {:.4f}'.format(mse / train_n))
 
         # Validation and checkpointing
         if itr % 1 == 0:

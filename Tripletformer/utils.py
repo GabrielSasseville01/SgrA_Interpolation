@@ -16,6 +16,8 @@ def log_normal_pdf(x, mean, logvar, mask):
     const = torch.from_numpy(np.array([2.0 * np.pi])).float().to(x.device)
     const = torch.log(const)
     # pdb.set_trace()
+    # if (logvar < 0).any():
+    #     print('Logvar is negative')
     return -0.5 * (const + logvar + (x - mean) ** 2.0 / torch.exp(logvar)) * mask
 
 
@@ -120,6 +122,8 @@ def get_dataset(batch_size, dataset, test_batch_size=2, filter_anomalies=True):
         x = np.load("./data_lib/simulated_random_walk_data.npz")
     elif dataset == 'xray':
         x = np.load("./data_lib/xray_data_only.npz")
+    elif dataset == 'noxray':
+        x = np.load("./data_lib/sgra_no_xray.npz")
     elif dataset == 'mimiciii':
         x = np.load("~/Desktop/codes_github/tripletformer/data_lib/mimiciii.npz")
     elif dataset == 'PenDigits':

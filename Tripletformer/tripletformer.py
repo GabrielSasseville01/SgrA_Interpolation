@@ -161,10 +161,10 @@ class TRIPLETFORMER(nn.Module):
         self.dim2 = 1
 
         loglik = self.compute_loglik(mask, px, self.norm)
-        loss_info.loglik = loglik.mean()
+        loss_info.loglik = loglik.mean() # log-likelihood
         loss_info.mse = self.compute_mse(mask, px.mean)
         loss_info.mae = self.compute_mae(mask, px.mean)
-        loss_info.composite_loss = -loss_info.loglik + self.mse_weight * loss_info.mse
+        loss_info.composite_loss = -loss_info.loglik + self.mse_weight * loss_info.mse # NLL + MSE
         return loss_info
     
 
