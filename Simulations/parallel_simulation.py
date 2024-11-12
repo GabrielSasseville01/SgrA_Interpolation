@@ -135,7 +135,7 @@ class Simulation:
             axs[i].set_ylabel('Flux')
             axs[i].legend()
 
-        fig.suptitle(f'Simulation {sim_number + 1}', fontsize=16) # +1 because indexing starts at 0
+        fig.suptitle(f'Simulation {sim_number}', fontsize=16) 
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         plt.show()
 
