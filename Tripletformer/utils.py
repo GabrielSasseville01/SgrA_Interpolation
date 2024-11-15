@@ -116,14 +116,20 @@ def get_dataset(batch_size, dataset, test_batch_size=2, filter_anomalies=True):
     """
     if dataset == 'physionet':
         x = np.load("./data_lib/physionet.npz")
-    elif dataset == 'sgrA':
-        x = np.load("./data_lib/sgrA.npz")
+    elif dataset == 'sgra':
+        x = np.load("./data_lib/sgra.npz")
     elif dataset == 'randomwalk':
         x = np.load("./data_lib/simulated_random_walk_data.npz")
     elif dataset == 'xray':
-        x = np.load("./data_lib/xray_data_only.npz")
+        x = np.load("./data_lib/xray.npz")
     elif dataset == 'noxray':
-        x = np.load("./data_lib/sgra_no_xray.npz")
+        x = np.load("./data_lib/noxray.npz")
+    elif dataset == 'nomask':
+        x = np.load("./data_lib/sgra_no_mask.npz")
+    elif dataset == 'noxray_no_mask':
+        x = np.load("./data_lib/noxray_no_mask.npz")
+    elif dataset == 'nomask_50':
+        x = np.load("./data_lib/nomask_50_noise.npz")
     elif dataset == 'mimiciii':
         x = np.load("~/Desktop/codes_github/tripletformer/data_lib/mimiciii.npz")
     elif dataset == 'PenDigits':

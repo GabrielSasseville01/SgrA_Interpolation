@@ -38,14 +38,20 @@ experiment_id = args.experiment_id or str(int(SystemRandom().random() * 10000000
 checkpoint_path = f'./saved_models/{args.dataset}_{experiment_id}.h5'
 train_loss_path = f'./losses/train_losses_{args.dataset}_{experiment_id}.npy'
 val_loss_path = f'./losses/val_losses_{args.dataset}_{experiment_id}.npy'
+nll_path = f'./nll/nll_{args.dataset}_{experiment_id}.npy'
+mse_path = f'./mse/mse_{args.dataset}_{experiment_id}.npy'
 
 # Load losses from checkpoint if they exist
 if os.path.isfile(train_loss_path) and os.path.isfile(val_loss_path):
     train_losses = np.load(train_loss_path)
     val_losses = np.load(val_loss_path)
+    nlls = np.load(nll_path)
+    mses = np.load(mse_path)
 else:
     train_losses = np.empty(0)
     val_losses = np.empty(0)
+    nlls = np.empty(0)
+    mses = np.empty(0)
 
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -105,13 +111,19 @@ if __name__ == '__main__':
             optimizer.step()
             train_loss += loss_info.composite_loss.item() * batch_len 
             avg_loglik += loss_info.loglik.item() * batch_len
-            mse += loss_info.mse * batch_len
-            mae += loss_info.mae * batch_len
+            mse += loss_info.mse.item() * batch_len
+            mae += loss_info.mae.item() * batch_len
             train_n += batch_len
 
         # Log and save training loss for this epoch
-        train_losses = np.append(train_losses, -avg_loglik / train_n)
+        train_losses = np.append(train_losses, train_loss / train_n)
         np.save(train_loss_path, train_losses)
+
+        # Log and save metrics for this epoch
+        nlls = np.append(nlls, -avg_loglik / train_n)
+        np.save(nll_path, nlls)
+        mses = np.append(mses, mse / train_n)
+        np.save(mse_path, mses)
         
         print('\nEpoch {} completed'.format(itr))
         # print('Training loss: {:.4f}'.format(-avg_loglik / train_n))
