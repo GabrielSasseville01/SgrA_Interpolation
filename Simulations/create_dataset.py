@@ -6,18 +6,22 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 import parallel_simulation as sim
 from sklearn.model_selection import train_test_split
+import copy
 
 class SimulationData:
     def __init__(self, data_list):
-        self.data_list = data_list
+        self.data_list = copy.deepcopy(data_list)
         self.keys = data_list[0]['data'].keys()
         self.num_examples = len(data_list)
         self.timesteps = len(data_list[0]['data']['X']['xdata_masked']) + len(data_list[0]['data']['X']['xdata_unmasked'])
-        self.channels = len(self.keys)
-        self.tripletformer_data = np.zeros((self.num_examples, self.timesteps, self.channels * 2 + 1))
+        self.ground_idx_start = None
 
     def create_tripletformer_data(self, file_path, keys=['X', 'NIR', 'IR', 'submm'], train_size=0.6, val_size=0.3, test_size=0.1):
+
+        channels = len(keys)
+        tripletformer_data = np.zeros((self.num_examples, self.timesteps, channels * 2 + 1))
         
+
         assert abs(train_size + val_size + test_size - 1) <= 1e-5, 'Train, val, test array sizes must sum to 1'
 
         for i, data_entry in enumerate(self.data_list):
@@ -29,18 +33,18 @@ class SimulationData:
                 ydata_masked = np.array(data_entry['data'][key]["ydata_masked"])
                 xdata_masked = np.array(data_entry['data'][key]["xdata_masked"], dtype=int)
                 # Fill in unmasked data at the correct time step indices
-                self.tripletformer_data[i, xdata_unmasked, j] = ydata_unmasked
-                self.tripletformer_data[i, xdata_masked, j] = ydata_masked
+                tripletformer_data[i, xdata_unmasked, j] = ydata_unmasked
+                tripletformer_data[i, xdata_masked, j] = ydata_masked
 
                 # Create a mask: 1 for observed (unmasked), 0 for masked
                 mask = np.zeros(self.timesteps)
                 mask[xdata_unmasked] = 1  # Mark unmasked data as observed
-                self.tripletformer_data[i, :, self.channels + j] = mask  # Fill the mask array
+                tripletformer_data[i, :, channels + j] = mask  # Fill the mask array
 
             # Time progression: assuming it ranges from 0 to 1 over 960 timesteps
-            self.tripletformer_data[i, :, -1] = np.linspace(0, 1, self.timesteps)
+            tripletformer_data[i, :, -1] = np.linspace(0, 1, self.timesteps)
 
-        train_data, temp_data = train_test_split(self.tripletformer_data, test_size=1-train_size, random_state=42)
+        train_data, temp_data = train_test_split(tripletformer_data, test_size=1-train_size, random_state=42)
         val_data, test_data = train_test_split(temp_data, test_size=0.1/(1-train_size), random_state=42)
 
         # Save to .npz file
@@ -149,7 +153,7 @@ class SimulationData:
         submm_ydata = data['submm']['ydata_unmasked']
 
         # Define the parameters
-        total_time = int(self.time_int)  # total number of minutes
+        total_time = len(submm_ydata)  # total number of minutes
         num_epochs = 4  # number of observing epochs
         epoch_duration = 76  # duration of each observing epoch in minutes
         gap_between_epochs = 40  # gap between observing epochs in minutes
@@ -229,15 +233,59 @@ class SimulationData:
             data[key]['xdata_masked'] = np.concatenate([x_masked, x_unmasked[remove_indices]])
             data[key]['ydata_masked'] = np.concatenate([y_masked, y_unmasked[remove_indices]])
     
-    def mask_data(self, percentage_removed=0.3, noise=0.0):
+    def mask_data(self, mask=True, percentage_removed=0.3, noise=0.0):
 
         for data in self.data_list:
-            self.submm_mask(data['data'])
-            self.NIR_mask(data['data'])
-            self.IR_mask(data['data'], percentage_removed)
-            self.X_mask(data['data'], percentage_removed)
 
+            if mask:
+                self.submm_mask(data['data'])
+                self.NIR_mask(data['data'])
+                self.IR_mask(data['data'], percentage_removed=percentage_removed)
+                self.X_mask(data['data'], percentage_removed=percentage_removed)
             if noise != 0:
-                self.add_noise(data, noise)
+                self.add_noise(data['data'], noise)
 
-        return self.data
+    def plot_random_example(self, data_path, fig_path='tmp.png', sim_number=-1, keys=["X", 'NIR', "IR", "submm"]):
+
+        # Load the .npz file
+        data = np.load(data_path)
+
+        # Combine the train, val, and test data to pick a random example from all data
+        all_data = np.concatenate([data['train'], data['val'], data['test']], axis=0)
+        
+        # Select a random example
+        if sim_number == -1:
+            sim_number = np.random.randint(all_data.shape[0])
+
+        example = all_data[sim_number]
+        
+        timesteps = example.shape[0]
+        channels = (example.shape[1] - 1) // 2  # X, NIR, IR, submm
+        
+        # Create a figure with subplots for each channel
+        fig, axes = plt.subplots(channels, 1, figsize=(10, 8), sharex=True)
+        time = np.linspace(0, 1, timesteps)
+
+        if channels == 1:
+            axes = [axes]
+        
+        for j, key in enumerate(keys):
+            # Retrieve the data and mask for this channel
+            ydata = example[:, j]
+            mask = example[:, channels + j]
+            
+            # Plot observed data (where mask is 1)
+            axes[j].scatter(time[mask == 1], ydata[mask == 1], color='blue', label='Observed', s=1)
+            # Plot masked data (where mask is 0)
+            axes[j].scatter(time[mask == 0], ydata[mask == 0], color='orange', label='Masked', s=1)
+            
+            # Label the subplot
+            axes[j].set_ylabel(key)
+            axes[j].legend()
+        
+        # Set common labels
+        axes[-1].set_xlabel("Normalized Time")
+        plt.suptitle("Random Example from Formatted Data")
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.savefig('')
+        plt.show()

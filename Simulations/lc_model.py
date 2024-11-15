@@ -2620,56 +2620,61 @@ class DataGenerator:
     
     def NIR_mask(self):
 
-        # Define the parameters
+        # # Define the parameters
         total_time = int(self.time_int)  # total number of minutes
-        total_observation_window = 4 * 76 + 3 * 40 + np.random.randint(-50, 51)  # Same as sub-mm observation window +/- between 0 and 50 minutes
+        # total_observation_window = 4 * 76 + 3 * 40 + np.random.randint(-50, 51)  # Same as sub-mm observation window +/- between 0 and 50 minutes
 
-        # Randomly select a starting point for the window, shifted by ~50 minutes
-        if self.ground_idx_start is None:
-            # Randomly select a starting point for the window
-            max_start_time = total_time - total_observation_window
-            self.ground_idx_start = np.random.randint(0, max_start_time + 1)
-            random_start_time = self.ground_idx_start
-        else:
-            random_start_time = self.ground_idx_start + np.random.randint(-50, 51)
+        # # Randomly select a starting point for the window, shifted by ~50 minutes
+        # if self.ground_idx_start is None:
+        #     # Randomly select a starting point for the window
+        #     max_start_time = total_time - total_observation_window
+        #     self.ground_idx_start = np.random.randint(0, max_start_time + 1)
+        #     random_start_time = self.ground_idx_start
+        # else:
+        #     random_start_time = self.ground_idx_start + np.random.randint(-50, 51)
 
-        # Ensure the shifted window fits within the total time
-        if random_start_time < 0:
-            random_start_time = 0
-        if random_start_time + total_observation_window > total_time:
-            random_start_time = total_time - total_observation_window
+        # # Ensure the shifted window fits within the total time
+        # if random_start_time < 0:
+        #     random_start_time = 0
+        # if random_start_time + total_observation_window > total_time:
+        #     random_start_time = total_time - total_observation_window
 
-        # Generate the time array
+        # # Generate the time array
         time_array = np.arange(total_time)
 
-        # Initialize lists to hold the indices
-        selected_indices = []
+        # # Initialize lists to hold the indices
+        # selected_indices = []
 
-        # Generate the indices within the random window
-        current_time = random_start_time
-        while current_time < random_start_time + total_observation_window:
-            observation_period = np.random.randint(1, 11)  # Random observation period between 1 and 10 minutes
-            for minute in range(observation_period):
-                if current_time + minute < random_start_time + total_observation_window:
-                    selected_indices.append(current_time + minute)
-            current_time += observation_period + np.random.randint(1, 11)  # Random gap between 1 and 10 minutes
+        # # Generate the indices within the random window
+        # current_time = random_start_time
+        # while current_time < random_start_time + total_observation_window:
+        #     observation_period = np.random.randint(1, 11)  # Random observation period between 1 and 10 minutes
+        #     for minute in range(observation_period):
+        #         if current_time + minute < random_start_time + total_observation_window:
+        #             selected_indices.append(current_time + minute)
+        #     current_time += observation_period + np.random.randint(1, 11)  # Random gap between 1 and 10 minutes
 
-        # Convert selected indices to a numpy array
-        selected_indices = np.array(selected_indices)
+        # # Convert selected indices to a numpy array
+        # selected_indices = np.array(selected_indices)
 
-        # Generate the unmasked indices
-        masked_indices = np.setdiff1d(time_array, selected_indices)
+        # # Generate the unmasked indices
+        # masked_indices = np.setdiff1d(time_array, selected_indices)
 
-        # Here we assume time_xdata is the same as time_array for simplicity
-        self.NIR_xdata_unmasked = time_array[selected_indices]
-        self.NIR_xdata_masked = time_array[masked_indices]
-        self.NIR_ydata_unmasked = self.NIR_ydata[selected_indices]
-        self.NIR_ydata_masked = self.NIR_ydata[masked_indices]
+        # # Here we assume time_xdata is the same as time_array for simplicity
+        # self.NIR_xdata_unmasked = time_array[selected_indices]
+        # self.NIR_xdata_masked = time_array[masked_indices]
+        # self.NIR_ydata_unmasked = self.NIR_ydata[selected_indices]
+        # self.NIR_ydata_masked = self.NIR_ydata[masked_indices]
 
-        self.data['NIR']['xdata_unmasked'] = self.NIR_xdata_unmasked
-        self.data['NIR']['xdata_masked'] = self.NIR_xdata_masked
-        self.data['NIR']['ydata_unmasked'] = self.NIR_ydata_unmasked
-        self.data['NIR']['ydata_masked'] = self.NIR_ydata_masked
+        # self.data['NIR']['xdata_unmasked'] = self.NIR_xdata_unmasked
+        # self.data['NIR']['xdata_masked'] = self.NIR_xdata_masked
+        # self.data['NIR']['ydata_unmasked'] = self.NIR_ydata_unmasked
+        # self.data['NIR']['ydata_masked'] = self.NIR_ydata_masked
+
+        self.data['NIR']['xdata_unmasked'] = time_array
+        self.data['NIR']['xdata_masked'] = np.empty(0)
+        self.data['NIR']['ydata_unmasked'] = self.NIR_ydata
+        self.data['NIR']['ydata_masked'] = np.empty(0)
 
     def IR_mask(self):
 
@@ -2686,62 +2691,67 @@ class DataGenerator:
         self.data['X']['ydata_masked'] = np.empty(0)
 
     def submm_mask(self):
-        # Define the parameters
+        # # Define the parameters
         total_time = int(self.time_int)  # total number of minutes
-        num_epochs = 4  # number of observing epochs
-        epoch_duration = 76  # duration of each observing epoch in minutes
-        gap_between_epochs = 40  # gap between observing epochs in minutes
-        observation_period = 7  # duration of each observation period in minutes
-        gap_within_epoch = 5  # gap within each observing epoch in minutes
-        minutes_between_observations = observation_period + gap_within_epoch
+        # num_epochs = 4  # number of observing epochs
+        # epoch_duration = 76  # duration of each observing epoch in minutes
+        # gap_between_epochs = 40  # gap between observing epochs in minutes
+        # observation_period = 7  # duration of each observation period in minutes
+        # gap_within_epoch = 5  # gap within each observing epoch in minutes
+        # minutes_between_observations = observation_period + gap_within_epoch
 
-        # Calculate the total duration of the observation window
-        total_observation_window = num_epochs * epoch_duration + (num_epochs - 1) * gap_between_epochs
+        # # Calculate the total duration of the observation window
+        # total_observation_window = num_epochs * epoch_duration + (num_epochs - 1) * gap_between_epochs
 
-        # Ensure the window can fit within the total time
-        if total_observation_window > total_time:
-            raise ValueError("The total observation window exceeds the available time.")
+        # # Ensure the window can fit within the total time
+        # if total_observation_window > total_time:
+        #     raise ValueError("The total observation window exceeds the available time.")
 
-        # Generate the time array
+        # # Generate the time array
         time_array = np.arange(total_time)
 
-        if self.ground_idx_start is None:
-            # Randomly select a starting point for the window
-            max_start_time = total_time - total_observation_window
-            self.ground_idx_start = np.random.randint(0, max_start_time + 1)
+        # if self.ground_idx_start is None:
+        #     # Randomly select a starting point for the window
+        #     max_start_time = total_time - total_observation_window
+        #     self.ground_idx_start = np.random.randint(0, max_start_time + 1)
 
-        # Initialize lists to hold the indices
-        selected_indices = []
+        # # Initialize lists to hold the indices
+        # selected_indices = []
 
-        # Generate the indices for each observing epoch within the random window
-        for epoch in range(num_epochs):
-            start_epoch = self.ground_idx_start + epoch * (epoch_duration + gap_between_epochs)
-            end_epoch = start_epoch + epoch_duration
+        # # Generate the indices for each observing epoch within the random window
+        # for epoch in range(num_epochs):
+        #     start_epoch = self.ground_idx_start + epoch * (epoch_duration + gap_between_epochs)
+        #     end_epoch = start_epoch + epoch_duration
             
-            # Generate indices within each epoch
-            current_time = start_epoch
-            while current_time < end_epoch:
-                for minute in range(observation_period):
-                    if current_time + minute < end_epoch:
-                        selected_indices.append(current_time + minute)
-                current_time += minutes_between_observations
+        #     # Generate indices within each epoch
+        #     current_time = start_epoch
+        #     while current_time < end_epoch:
+        #         for minute in range(observation_period):
+        #             if current_time + minute < end_epoch:
+        #                 selected_indices.append(current_time + minute)
+        #         current_time += minutes_between_observations
 
-        # Convert selected indices to a numpy array
-        selected_indices = np.array(selected_indices)
+        # # Convert selected indices to a numpy array
+        # selected_indices = np.array(selected_indices)
 
-        # Generate the unmasked indices
-        masked_indices = np.setdiff1d(time_array, selected_indices)
+        # # Generate the unmasked indices
+        # masked_indices = np.setdiff1d(time_array, selected_indices)
 
-        # Here we assume time_xdata is the same as time_array for simplicity
-        self.submm_xdata_unmasked = time_array[selected_indices]
-        self.submm_xdata_masked = time_array[masked_indices]
-        self.submm_ydata_unmasked = self.submm_ydata[selected_indices]
-        self.submm_ydata_masked = self.submm_ydata[masked_indices]
+        # # Here we assume time_xdata is the same as time_array for simplicity
+        # self.submm_xdata_unmasked = time_array[selected_indices]
+        # self.submm_xdata_masked = time_array[masked_indices]
+        # self.submm_ydata_unmasked = self.submm_ydata[selected_indices]
+        # self.submm_ydata_masked = self.submm_ydata[masked_indices]
 
-        self.data['submm']['xdata_unmasked'] = self.submm_xdata_unmasked
-        self.data['submm']['xdata_masked'] = self.submm_xdata_masked
-        self.data['submm']['ydata_unmasked'] = self.submm_ydata_unmasked
-        self.data['submm']['ydata_masked'] = self.submm_ydata_masked
+        # self.data['submm']['xdata_unmasked'] = self.submm_xdata_unmasked
+        # self.data['submm']['xdata_masked'] = self.submm_xdata_masked
+        # self.data['submm']['ydata_unmasked'] = self.submm_ydata_unmasked
+        # self.data['submm']['ydata_masked'] = self.submm_ydata_masked
+
+        self.data['submm']['xdata_unmasked'] = time_array
+        self.data['submm']['xdata_masked'] = np.empty(0)
+        self.data['submm']['ydata_unmasked'] = self.submm_ydata
+        self.data['submm']['ydata_masked'] = np.empty(0)
 
     def add_noise(self, percentage_removed):
         # Randomly remove 10% of the unmasked data and transfer to masked data
@@ -2775,8 +2785,8 @@ class DataGenerator:
         self.IR_mask()
         self.X_mask()
 
-        if percentage_removed != 0:
-            self.add_noise(percentage_removed)
+        # if percentage_removed != 0:
+        #     self.add_noise(percentage_removed)
 
         return self.data
 
