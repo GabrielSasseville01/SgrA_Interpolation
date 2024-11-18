@@ -225,6 +225,7 @@ def test_result(
     # torch.manual_seed(seed=0)
     # np.random.seed(seed=0)
     train_n = 0
+    train_loss = 0
     avg_loglik, mse, mae, crps = 0, 0, 0, 0
     mean_mae, mean_mse = 0, 0
     with torch.no_grad():
@@ -249,6 +250,7 @@ def test_result(
                 num_samples=k_iwae
             )
             num_context_points = recon_mask.sum().item()
+            train_loss += loss_info.composite_loss.item() * num_context_points 
             mse += loss_info.mse * num_context_points
             mae += loss_info.mae * num_context_points
             avg_loglik += loss_info.loglik * num_context_points
@@ -260,7 +262,7 @@ def test_result(
     #         mae / train_n,
     #     )
     # )
-    return -avg_loglik/train_n
+    return train_loss/train_n, (-avg_loglik/train_n).item(), (mse/train_n).item()
 
 
 def batch_prediction(
@@ -290,10 +292,10 @@ def batch_prediction(
             means = px.mean
             logvars = px.logvar
             std = torch.sqrt(torch.exp(logvars))
-            return means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
-            # if tmp == 50:
-            #     return means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
-            # tmp += 1
+            # return means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
+            if tmp == 50:
+                return means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
+            tmp += 1
         
     
 
