@@ -49,6 +49,13 @@ class SimulationData:
 
         # Save to .npz file
         np.savez(file_path, train=train_data, val=val_data, test=test_data)
+    
+    def standardize(self):
+        for data_entry in self.data_list:
+            for key in self.keys:
+                ydata_unmasked = np.array(data_entry['data'][key]["ydata_unmasked"])
+                data_entry['data'][key]["ydata_unmasked"] = (ydata_unmasked - ydata_unmasked.mean()) / ydata_unmasked.std()
+
 
     def NIR_mask(self, data):
         
