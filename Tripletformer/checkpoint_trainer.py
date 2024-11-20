@@ -36,23 +36,7 @@ print(' '.join(sys.argv))
 # Define file paths for checkpoint and loss files
 experiment_id = args.experiment_id or str(int(SystemRandom().random() * 10000000))
 checkpoint_path = f'./saved_models/{args.dataset}_{experiment_id}.h5'
-# train_loss_path = f'./losses/train_losses_{args.dataset}_{experiment_id}.npy'
-# val_loss_path = f'./losses/val_losses_{args.dataset}_{experiment_id}.npy'
-# nll_path = f'./nll/nll_{args.dataset}_{experiment_id}.npy'
-# mse_path = f'./mse/mse_{args.dataset}_{experiment_id}.npy'
 metrics_path = f'./metrics/metrics_{args.dataset}_{experiment_id}'
-
-# Load losses from checkpoint if they exist
-# if os.path.isfile(train_loss_path) and os.path.isfile(val_loss_path):
-#     train_losses = np.load(train_loss_path)
-#     val_losses = np.load(val_loss_path)
-#     nlls = np.load(nll_path)
-#     mses = np.load(mse_path)
-# else:
-#     train_losses = np.empty(0)
-#     val_losses = np.empty(0)
-#     nlls = np.empty(0)
-#     mses = np.empty(0)
 
 # Load metrics from file if they exist
 if os.path.isfile(metrics_path):
@@ -134,23 +118,12 @@ if __name__ == '__main__':
             mae += loss_info.mae.item() * batch_len
             train_n += batch_len
 
-        # # Log and save training loss for this epoch
-        # train_losses = np.append(train_losses, train_loss / train_n)
-        # np.save(train_loss_path, train_losses)
-
-        # # Log and save metrics for this epoch
-        # nlls = np.append(nlls, -avg_loglik / train_n)
-        # np.save(nll_path, nlls)
-        # mses = np.append(mses, mse / train_n)
-        # np.save(mse_path, mses)
-
         # Log and save training metrics for this epoch
         metrics["train"]["loss"].append(train_loss / train_n)
         metrics["train"]["nll"].append(-avg_loglik / train_n)
         metrics["train"]["mse"].append(mse / train_n)
         
         print('\nEpoch {} completed'.format(itr))
-        # print('Training loss: {:.4f}'.format(-avg_loglik / train_n))
         print('Training loss: {:.4f}'.format(train_loss / train_n))
         print('NLL: {:.4f}'.format(-avg_loglik / train_n))
         print('MSE: {:.4f}'.format(mse / train_n))
@@ -158,9 +131,6 @@ if __name__ == '__main__':
         # Validation and checkpointing
         if itr % 1 == 0:
             val_loss, val_nll, val_mse = utils.test_result(net, dim, val_loader, args.sample_type, args.sample_tp, shuffle=False, k_iwae=1)
-        
-            # val_losses = np.append(val_losses, val_loss)
-            # np.save(val_loss_path, val_losses)
 
             # Log and save validation metrics for this epoch
             metrics["val"]["loss"].append(val_loss)
@@ -183,7 +153,7 @@ if __name__ == '__main__':
             else:
                 early_stop += 1
             if early_stop == max_early_stop:
-                print("Early stopping due to no improvement in validation metric for 30 epochs.")
+                print("Early stopping due to no improvement in validation metric for {} epochs.".format(max_early_stop))
                 break
             scheduler.step(val_loss)
         
