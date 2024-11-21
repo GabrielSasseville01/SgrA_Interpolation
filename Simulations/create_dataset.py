@@ -9,17 +9,24 @@ from sklearn.model_selection import train_test_split
 import copy
 
 class SimulationData:
-    def __init__(self, data_list):
+    def __init__(self, data_list, seed=None):
         self.data_list = copy.deepcopy(data_list)
         self.keys = data_list[0]['data'].keys()
         self.num_examples = len(data_list)
         self.timesteps = len(data_list[0]['data']['X']['xdata_masked']) + len(data_list[0]['data']['X']['xdata_unmasked'])
         self.ground_idx_start = None
+        self.seed = seed
 
-    def create_tripletformer_data(self, file_path, keys=['X', 'NIR', 'IR', 'submm'], train_size=0.6, val_size=0.3, test_size=0.1):
-
+    def create_data(self, file_path, keys=['X', 'NIR', 'IR', 'submm'], model='triplet', train_size=0.6, val_size=0.3, test_size=0.1):
+        
         channels = len(keys)
-        tripletformer_data = np.zeros((self.num_examples, self.timesteps, channels * 2 + 1))
+
+        if model == 'triplet':    
+            file_path = 'data_lib/' + file_path + '_triplet'
+            data = np.zeros((self.num_examples, self.timesteps, channels * 2 + 1))
+        elif model == 'mogp':
+            file_path = 'data_lib/' + file_path + '_mogp'
+            data = np.zeros((self.num_examples, self.timesteps, channels * 2))
         
 
         assert abs(train_size + val_size + test_size - 1) <= 1e-5, 'Train, val, test array sizes must sum to 1'
@@ -33,22 +40,58 @@ class SimulationData:
                 ydata_masked = np.array(data_entry['data'][key]["ydata_masked"])
                 xdata_masked = np.array(data_entry['data'][key]["xdata_masked"], dtype=int)
                 # Fill in unmasked data at the correct time step indices
-                tripletformer_data[i, xdata_unmasked, j] = ydata_unmasked
-                tripletformer_data[i, xdata_masked, j] = ydata_masked
+                data[i, xdata_unmasked, j] = ydata_unmasked
+                data[i, xdata_masked, j] = ydata_masked
 
                 # Create a mask: 1 for observed (unmasked), 0 for masked
                 mask = np.zeros(self.timesteps)
                 mask[xdata_unmasked] = 1  # Mark unmasked data as observed
-                tripletformer_data[i, :, channels + j] = mask  # Fill the mask array
+                data[i, :, channels + j] = mask  # Fill the mask array
 
-            # Time progression: assuming it ranges from 0 to 1 over 960 timesteps
-            tripletformer_data[i, :, -1] = np.linspace(0, 1, self.timesteps)
+            if model == 'triplet':
+                # Time progression: assuming it ranges from 0 to 1 over 960 timesteps
+                data[i, :, -1] = np.linspace(0, 1, self.timesteps)
 
-        train_data, temp_data = train_test_split(tripletformer_data, test_size=1-train_size, random_state=42)
-        val_data, test_data = train_test_split(temp_data, test_size=0.1/(1-train_size), random_state=42)
+        train_data, temp_data = train_test_split(data, test_size=1-train_size, random_state=self.seed)
+        val_data, test_data = train_test_split(temp_data, test_size=0.1/(1-train_size), random_state=self.seed)
 
         # Save to .npz file
         np.savez(file_path, train=train_data, val=val_data, test=test_data)
+
+    # def create_mogp_data(self, file_path, keys=['X', 'NIR', 'IR', 'submm'], train_size=0.6, val_size=0.3, test_size=0.1):
+
+    #     file_path = 'data_lib/' + file_path + '_mogp'
+    #     channels = len(keys)
+    #     mogp_data = np.zeros((self.num_examples, self.timesteps, channels * 2))
+        
+
+    #     assert abs(train_size + val_size + test_size - 1) <= 1e-5, 'Train, val, test array sizes must sum to 1'
+
+    #     for i, data_entry in enumerate(self.data_list):
+    #         for j, key in enumerate(keys):
+
+    #             # Retrieve unmasked and masked y-values and their corresponding x indices
+    #             ydata_unmasked = np.array(data_entry['data'][key]["ydata_unmasked"])
+    #             xdata_unmasked = np.array(data_entry['data'][key]["xdata_unmasked"], dtype=int)
+    #             ydata_masked = np.array(data_entry['data'][key]["ydata_masked"])
+    #             xdata_masked = np.array(data_entry['data'][key]["xdata_masked"], dtype=int)
+    #             # Fill in unmasked data at the correct time step indices
+    #             mogp_data[i, xdata_unmasked, j] = ydata_unmasked
+    #             mogp_data[i, xdata_masked, j] = ydata_masked
+
+    #             # Create a mask: 1 for observed (unmasked), 0 for masked
+    #             mask = np.zeros(self.timesteps)
+    #             mask[xdata_unmasked] = 1  # Mark unmasked data as observed
+    #             mogp_data[i, :, channels + j] = mask  # Fill the mask array
+
+    #         # Time progression: assuming it ranges from 0 to 1 over 960 timesteps
+    #         mogp_data[i, :, -1] = np.linspace(0, 1, self.timesteps)
+
+    #     train_data, temp_data = train_test_split(mogp_data, test_size=1-train_size, random_state=42)
+    #     val_data, test_data = train_test_split(temp_data, test_size=0.1/(1-train_size), random_state=42)
+
+    #     # Save to .npz file
+    #     np.savez(file_path, train=train_data, val=val_data, test=test_data)
     
     def standardize(self):
         for data_entry in self.data_list:
@@ -252,8 +295,11 @@ class SimulationData:
             if noise != 0:
                 self.add_noise(data['data'], noise)
 
-    def plot_random_example(self, data_path, fig_path='tmp.png', sim_number=-1, keys=["X", 'NIR', "IR", "submm"]):
-
+    def plot_random_example(self, data_path, fig_path='tmp.png', sim_number=-1, keys=["X", 'NIR', "IR", "submm"], model='triplet'):
+        if model == 'triplet':
+            data_path = 'data_lib/' + data_path + '_triplet.npz'
+        else:
+            data_path = 'data_lib/' + data_path + '_mogp.npz'
         # Load the .npz file
         data = np.load(data_path)
 
@@ -267,7 +313,7 @@ class SimulationData:
         example = all_data[sim_number]
         
         timesteps = example.shape[0]
-        channels = (example.shape[1] - 1) // 2  # X, NIR, IR, submm
+        channels = len(keys)  # X, NIR, IR, submm
         
         # Create a figure with subplots for each channel
         fig, axes = plt.subplots(channels, 1, figsize=(10, 8), sharex=True)
