@@ -52,46 +52,16 @@ class SimulationData:
                 # Time progression: assuming it ranges from 0 to 1 over 960 timesteps
                 data[i, :, -1] = np.linspace(0, 1, self.timesteps)
 
-        train_data, temp_data = train_test_split(data, test_size=1-train_size, random_state=self.seed)
-        val_data, test_data = train_test_split(temp_data, test_size=0.1/(1-train_size), random_state=self.seed)
+        if model == 'triplet':
+            train_data, temp_data = train_test_split(data, test_size=1-train_size, random_state=self.seed)
+            val_data, test_data = train_test_split(temp_data, test_size=0.1/(1-train_size), random_state=self.seed)
 
-        # Save to .npz file
-        np.savez(file_path, train=train_data, val=val_data, test=test_data)
+            # Save to .npz file
+            np.savez(file_path, train=train_data, val=val_data, test=test_data)
+        elif model == 'mogp':
+            # Save to .npz file
+            np.savez(file_path, data=data)
 
-    # def create_mogp_data(self, file_path, keys=['X', 'NIR', 'IR', 'submm'], train_size=0.6, val_size=0.3, test_size=0.1):
-
-    #     file_path = 'data_lib/' + file_path + '_mogp'
-    #     channels = len(keys)
-    #     mogp_data = np.zeros((self.num_examples, self.timesteps, channels * 2))
-        
-
-    #     assert abs(train_size + val_size + test_size - 1) <= 1e-5, 'Train, val, test array sizes must sum to 1'
-
-    #     for i, data_entry in enumerate(self.data_list):
-    #         for j, key in enumerate(keys):
-
-    #             # Retrieve unmasked and masked y-values and their corresponding x indices
-    #             ydata_unmasked = np.array(data_entry['data'][key]["ydata_unmasked"])
-    #             xdata_unmasked = np.array(data_entry['data'][key]["xdata_unmasked"], dtype=int)
-    #             ydata_masked = np.array(data_entry['data'][key]["ydata_masked"])
-    #             xdata_masked = np.array(data_entry['data'][key]["xdata_masked"], dtype=int)
-    #             # Fill in unmasked data at the correct time step indices
-    #             mogp_data[i, xdata_unmasked, j] = ydata_unmasked
-    #             mogp_data[i, xdata_masked, j] = ydata_masked
-
-    #             # Create a mask: 1 for observed (unmasked), 0 for masked
-    #             mask = np.zeros(self.timesteps)
-    #             mask[xdata_unmasked] = 1  # Mark unmasked data as observed
-    #             mogp_data[i, :, channels + j] = mask  # Fill the mask array
-
-    #         # Time progression: assuming it ranges from 0 to 1 over 960 timesteps
-    #         mogp_data[i, :, -1] = np.linspace(0, 1, self.timesteps)
-
-    #     train_data, temp_data = train_test_split(mogp_data, test_size=1-train_size, random_state=42)
-    #     val_data, test_data = train_test_split(temp_data, test_size=0.1/(1-train_size), random_state=42)
-
-    #     # Save to .npz file
-    #     np.savez(file_path, train=train_data, val=val_data, test=test_data)
     
     def standardize(self):
         for data_entry in self.data_list:
@@ -303,8 +273,11 @@ class SimulationData:
         # Load the .npz file
         data = np.load(data_path)
 
-        # Combine the train, val, and test data to pick a random example from all data
-        all_data = np.concatenate([data['train'], data['val'], data['test']], axis=0)
+        if model == 'triplet':
+            # Combine the train, val, and test data to pick a random example from all data
+            all_data = np.concatenate([data['train'], data['val'], data['test']], axis=0)
+        elif model == 'mogp':
+            all_data = data['data']
         
         # Select a random example
         if sim_number == -1:
