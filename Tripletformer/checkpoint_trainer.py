@@ -36,7 +36,9 @@ print(' '.join(sys.argv))
 # Define file paths for checkpoint and loss files
 experiment_id = args.experiment_id or str(int(SystemRandom().random() * 10000000))
 checkpoint_path = f'./saved_models/{args.dataset}_{experiment_id}.h5'
-metrics_path = f'./metrics/metrics_{args.dataset}_{experiment_id}'
+best_model_path = f'./saved_models/best_model_{args.dataset}_{experiment_id}.h5'
+best_val_loss_path = f'./metrics/best_val_loss_{args.dataset}_{experiment_id}.npy'
+metrics_path = f'./metrics/metrics_{args.dataset}_{experiment_id}.npz'
 
 # Load metrics from file if they exist
 if os.path.isfile(metrics_path):
@@ -69,7 +71,11 @@ if __name__ == '__main__':
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=10, factor=0.5, min_lr=0.00001, verbose=True)
 
     # Track best validation loss and starting epoch
-    best_val_loss = 10000
+    if os.path.isfile(best_val_loss_path):
+        best_val_loss = np.load(best_val_loss_path)[0]
+    else:
+        best_val_loss = 10000
+
     start_epoch = 1
     max_early_stop = args.max_early_stop
     early_stop = 0
@@ -139,7 +145,16 @@ if __name__ == '__main__':
 
             print('Validation loss: {:.4f}'.format(val_loss))
 
-            # Checkpoint if validation improves
+            # Save model for checkpointing
+            torch.save({
+                    'args': args,
+                    'epoch': itr,
+                    'state_dict': net.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': train_loss / train_n,
+                }, checkpoint_path)
+
+            # Save best model if validation improves
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 torch.save({
@@ -148,12 +163,16 @@ if __name__ == '__main__':
                     'state_dict': net.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': train_loss / train_n,
-                }, checkpoint_path)
+                }, best_model_path)
+                np.save(best_val_loss_path, np.array([best_val_loss]))
                 early_stop = 0
             else:
                 early_stop += 1
+
             if early_stop == max_early_stop:
                 print("Early stopping due to no improvement in validation metric for {} epochs.".format(max_early_stop))
+                # Save metrics to file
+                np.savez(metrics_path, metrics=metrics)
                 break
             scheduler.step(val_loss)
         
