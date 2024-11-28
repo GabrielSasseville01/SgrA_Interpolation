@@ -170,11 +170,11 @@ if __name__ == '__main__':
         mystds = stds[indices]
         ax.fill_between(
             times,
-            (mymeans - mystds).flatten(),
-            (mymeans + mystds).flatten(),
+            (mymeans - 2*mystds).flatten(),
+            (mymeans + 2*mystds).flatten(),
             alpha=0.2,
             color='red',
-            label='±1 Std Dev'
+            label=r'2-$\sigma$'
         )
         
         # Set labels and title for each subplot
