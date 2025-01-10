@@ -1,10 +1,10 @@
-# pylint: disable=E1101
 import torch
 from torch.utils.data import DataLoader
 import numpy as np
-from sklearn import model_selection
-import pdb
 import torch.nn.functional as F
+from scipy.stats import norm
+import pandas as pd
+import matplotlib.pyplot as plt
 
 
 
@@ -15,11 +15,7 @@ def count_parameters(model):
 def log_normal_pdf(x, mean, logvar, mask):
     const = torch.from_numpy(np.array([2.0 * np.pi])).float().to(x.device)
     const = torch.log(const)
-    # pdb.set_trace()
-    # if (logvar < 0).any():
-    #     print('Logvar is negative')
     return -0.5 * (const + logvar + (x - mean) ** 2.0 / torch.exp(logvar)) * mask
-
 
 
 def mean_squared_error(orig, pred, mask):
@@ -28,67 +24,22 @@ def mean_squared_error(orig, pred, mask):
     return error.sum() / mask.sum()
 
 
+def mse_inference(y, preds):
+    return (np.sum(np.square(y - preds))) / len(y)
+
+
 def mean_absolute_error(orig, pred, mask):
     error = torch.abs(orig - pred)
     error = error * mask
     return error.sum() / mask.sum()
 
 
-def evaluate_model(
-    net,
-    dim,
-    train_loader,
-    sample_tp=0.5,
-    shuffle=False,
-    k_iwae=1,
-    device='cuda',
-):
-    # torch.manual_seed(seed=0)
-    # np.random.seed(seed=0)
-    train_n = 0
-    avg_loglik, mse, mae = 0, 0, 0
-    mean_mae, mean_mse = 0, 0
-    with torch.no_grad():
-        for train_batch in train_loader:
-            train_batch = train_batch.to(device)
-            subsampled_mask = subsample_timepoints(
-                train_batch[:, :, dim:2 * dim].clone(),
-                sample_tp,
-                shuffle=shuffle,
-            )
-            recon_mask = train_batch[:, :, dim:2 * dim] - subsampled_mask
-            context_y = torch.cat((
-                train_batch[:, :, :dim] * subsampled_mask, subsampled_mask
-            ), -1)
-            loss_info = net.compute_unsupervised_loss(
-                train_batch[:, :, -1],
-                context_y,
-                train_batch[:, :, -1],
-                torch.cat((
-                    train_batch[:, :, :dim] * recon_mask, recon_mask
-                ), -1),
-                num_samples=k_iwae,
-            )
-            num_context_points = recon_mask.sum().item()
-            mse += loss_info.mse * num_context_points
-            mae += loss_info.mae * num_context_points
-            mean_mse += loss_info.mean_mse * num_context_points
-            mean_mae += loss_info.mean_mae * num_context_points
-            avg_loglik += loss_info.mogloglik * num_context_points
-            train_n += num_context_points
-    print(
-        'nll: {:.4f}, mse: {:.4f}, mae: {:.4f}, '
-        'mean_mse: {:.4f}, mean_mae: {:.4f}'.format(
-            - avg_loglik / train_n,
-            mse / train_n,
-            mae / train_n,
-            mean_mse / train_n,
-            mean_mae / train_n
-        )
-    )
+def crps_norm(y, mu, sigma):
+    w = (y-mu)/sigma
+    return np.sum(sigma * (w*(2*norm.cdf(w)-1) + 2 * norm.pdf(w) - 1/np.sqrt(np.pi))) / len(y)
 
 
-def get_dataset(batch_size, dataset, test_batch_size=2, filter_anomalies=True):
+def get_dataset(batch_size, dataset, test_batch_size=1, filter_anomalies=True):
     """
     Load and prepare a specified dataset for training, validation, and testing, returning data loaders for each.
 
@@ -255,47 +206,170 @@ def test_result(
             mae += loss_info.mae * num_context_points
             avg_loglik += loss_info.loglik * num_context_points
             train_n += num_context_points
-    # print(
-    #     'nll: {:.4f}, mse: {:.4f}, mae: {:.4f},'.format(
-    #         - avg_loglik / train_n,
-    #         mse / train_n,
-    #         mae / train_n,
-    #     )
-    # )
+
     return train_loss/train_n, (-avg_loglik/train_n).item(), (mse/train_n).item()
 
 
-def batch_prediction(
+def evaluate_model(
     net,
     dim,
     test_loader,
+    keys,  # List of channel names
     device='cuda'):
-    tmp = 0
+    
+    mse = np.zeros(dim)
+    crps = np.zeros(dim)
+    
     with torch.no_grad():
-        for test_batch in test_loader:
+        for batch_idx, test_batch in enumerate(test_loader):
+            if batch_idx % 100 == 0:
+                print('Evaluating Sample:', batch_idx)
             test_batch = test_batch.to(device)
-
-            # Create context and reconstruction masks as per the original code
-            original_mask = torch.ones(test_batch[:, :, dim:2 * dim].shape).to(device)
+            
+            # Create context and reconstruction masks
+            original_mask = torch.ones_like(test_batch[:, :, dim:2 * dim])
             subsampled_mask = test_batch[:, :, dim:2 * dim]
             recon_mask = original_mask - subsampled_mask
+            
             context_y = torch.cat((test_batch[:, :, :dim] * subsampled_mask, subsampled_mask), -1)
-
-            # Compute unsupervised loss and update
+            
+            # Perform inference
             px, time_indices, channel_indices = net.inference(
-                test_batch[:, :, -1], # Time progression indicator
+                test_batch[:, :, -1],  # Time progression indicator
                 context_y,             # Observed values and mask. 0's correspond to masked.
-                test_batch[:, :, -1], # Time progression indicator
-                torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1) # Ground truth for masked values and mask. 1's correspond to masked.
+                test_batch[:, :, -1],  # Time progression indicator
+                torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1)  # Ground truth for masked values and mask. 1's correspond to masked.
             )
-           
+            
             means = px.mean
             logvars = px.logvar
             std = torch.sqrt(torch.exp(logvars))
-            # return means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
-            if tmp == 239:
-                return means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
-            tmp += 1
+
+            means = means.squeeze().cpu()
+            stds = std.squeeze().cpu()
+            time_indices = time_indices.squeeze().cpu()
+            channel_indices = channel_indices.squeeze().cpu()
+            test_batch = test_batch[:, :, :-1].squeeze().cpu()
+
+
+            for chan in range(dim):
+
+                y = test_batch[:, chan][np.where(test_batch[:, chan + dim] == 0)]
+                indices = np.where(channel_indices == chan)
+                preds = means[indices]
+                sigmas = stds[indices]
+
+                y = y.cpu().numpy()
+                preds = preds.cpu().numpy()
+                sigmas = sigmas.cpu().numpy()
+
+                mse[chan] += mse_inference(y, preds)
+                crps[chan] += crps_norm(y, preds, sigmas)
         
-    
+        return mse, crps, batch_idx
+
+
+def plot_test(
+    net,
+    dim,
+    test_loader,
+    sample,
+    device='cuda',):
+    tmp = 0
+    with torch.no_grad():
+        for batch_idx, test_batch in enumerate(test_loader):
+            if batch_idx == sample:
+                test_batch = test_batch.to(device)
+
+                # Create context and reconstruction masks as per the original code
+                original_mask = torch.ones(test_batch[:, :, dim:2 * dim].shape).to(device)
+                subsampled_mask = test_batch[:, :, dim:2 * dim]
+                recon_mask = original_mask - subsampled_mask
+                context_y = torch.cat((test_batch[:, :, :dim] * subsampled_mask, subsampled_mask), -1)
+
+                # Compute unsupervised loss and update
+                px, time_indices, channel_indices = net.inference(
+                    test_batch[:, :, -1], # Time progression indicator
+                    context_y,             # Observed values and mask. 0's correspond to masked.
+                    test_batch[:, :, -1], # Time progression indicator
+                    torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1) # Ground truth for masked values and mask. 1's correspond to masked.
+                )
+                
+                means = px.mean
+                logvars = px.logvar
+                std = torch.sqrt(torch.exp(logvars))
+
+                means, stds, time_indices, channel_indices, test_batch = means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
+
+                # Create subplots for each channel
+                fig, axs = plt.subplots(dim, 1, figsize=(10, 2 * dim), sharex=True)
+                timesteps = np.arange(1, test_batch.size(0) + 1)
+                total_pred_points = 0
+                
+                if dim == 1:
+                    axs = [axs]
+
+                for chan in range(dim):
+                    ax = axs[chan]
+                    
+                    # Plot observed values in orange
+                    ax.scatter(
+                        timesteps[np.where(test_batch[:, chan + dim] == 1)],
+                        test_batch[:, chan][np.where(test_batch[:, chan + dim] == 1)],
+                        s=0.5,
+                        color='blue',
+                        label='Observed'
+                    )
+                    
+                    # Plot unobserved values in blue
+                    ax.scatter(
+                        timesteps[np.where(test_batch[:, chan + dim] == 0)],
+                        test_batch[:, chan][np.where(test_batch[:, chan + dim] == 0)],
+                        s=0.5,
+                        color='orange',
+                        label='Masked'
+                    )
+                    
+                    # Plot predicted means and uncertainty bounds for the current channel
+                    indices = np.where(channel_indices == chan)
+                    total_pred_points += len(indices[0])
+                    print('Amount of points to predict: ', len(indices[0]), 'for channel: ', chan)
+                    times = time_indices[indices]
+                    mymeans = means[indices]
+
+                    print('Length of means: ', len(mymeans))
+
+                    ax.scatter(
+                        times,
+                        mymeans,
+                        linewidth=1,
+                        color='red',
+                        label='Predicted Mean',
+                        s=0.5
+                    )
+
+                    mystds = stds[indices]
+                    ax.fill_between(
+                        times,
+                        (mymeans - 2*mystds).flatten(),
+                        (mymeans + 2*mystds).flatten(),
+                        alpha=0.2,
+                        color='red',
+                        label=r'2-$\sigma$'
+                    )
+                    
+                    # Set labels and title for each subplot
+                    ax.set_ylabel(f"Channel {chan + 1}")
+                    ax.legend(loc="upper right")
+
+                # Set x-axis label and overall title
+                axs[-1].set_xlabel("Timesteps")
+                plt.suptitle("Predictions and Observed Data for Each Channel")
+                plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+                print('Total pred points is:', total_pred_points)
+
+                plt.savefig('figures/test.png')
+                    
+                
 

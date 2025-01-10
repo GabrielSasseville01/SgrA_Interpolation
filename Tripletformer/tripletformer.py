@@ -232,7 +232,6 @@ class TRIPLETFORMER(nn.Module):
     
         
         obs_len = torch.max(target_mask[:,:,1].sum(-1)).to(torch.int64) # number of points to predict
-        print('Number of points to predict: ', obs_len)
         # Truncate the padding to the number of points to predict
         target_context = target_context[:, :obs_len]
         target_mask = target_mask[:, :obs_len]
