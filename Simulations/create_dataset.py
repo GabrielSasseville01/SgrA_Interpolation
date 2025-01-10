@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 import copy
 
 class SimulationData:
-    def __init__(self, data_list, seed=None):
+    def __init__(self, data_list, seed=42):
         self.data_list = copy.deepcopy(data_list)
         self.keys = data_list[0]['data'].keys()
         self.num_examples = len(data_list)
@@ -48,19 +48,20 @@ class SimulationData:
                 mask[xdata_unmasked] = 1  # Mark unmasked data as observed
                 data[i, :, channels + j] = mask  # Fill the mask array
 
+
             if model == 'triplet':
                 # Time progression: assuming it ranges from 0 to 1 over 960 timesteps
                 data[i, :, -1] = np.linspace(0, 1, self.timesteps)
+            
+        train_data, temp_data = train_test_split(data, test_size=1-train_size, random_state=self.seed)
+        val_data, test_data = train_test_split(temp_data, test_size=0.1/(1-train_size), random_state=self.seed)
 
         if model == 'triplet':
-            train_data, temp_data = train_test_split(data, test_size=1-train_size, random_state=self.seed)
-            val_data, test_data = train_test_split(temp_data, test_size=0.1/(1-train_size), random_state=self.seed)
-
             # Save to .npz file
             np.savez(file_path, train=train_data, val=val_data, test=test_data)
         elif model == 'mogp':
             # Save to .npz file
-            np.savez(file_path, data=data)
+            np.savez(file_path, train=train_data, val=val_data, test=test_data)
 
     
     def standardize(self):
@@ -71,6 +72,7 @@ class SimulationData:
 
 
     def NIR_mask(self, data):
+        np.random.seed(self.seed)
         
         NIR_ydata = data['NIR']['ydata_unmasked']
 
@@ -126,6 +128,7 @@ class SimulationData:
         data['NIR']['ydata_masked'] = NIR_ydata_masked
 
     def IR_mask(self, data, key='IR', percentage_removed=0.0):
+        np.random.seed(self.seed)
 
         x_unmasked = data[key]['xdata_unmasked']
         y_unmasked = data[key]['ydata_unmasked']
@@ -148,6 +151,8 @@ class SimulationData:
         data[key]['ydata_masked'] = np.concatenate([y_masked, y_unmasked[remove_indices]])
 
     def X_mask(self, data, key='X', percentage_removed=0.0):
+        np.random.seed(self.seed)
+
         x_unmasked = data[key]['xdata_unmasked']
         y_unmasked = data[key]['ydata_unmasked']
         x_masked = data[key]['xdata_masked']
@@ -169,6 +174,7 @@ class SimulationData:
         data[key]['ydata_masked'] = np.concatenate([y_masked, y_unmasked[remove_indices]]) 
 
     def submm_mask(self, data):
+        np.random.seed(self.seed)
         
         submm_ydata = data['submm']['ydata_unmasked']
 
@@ -230,8 +236,9 @@ class SimulationData:
         data['submm']['ydata_masked'] = submm_ydata_masked
 
     def add_noise(self, data, percentage_removed):
+        np.random.seed(self.seed)
+
         # Randomly remove 10% of the unmasked data and transfer to masked data
-        # for key in ['NIR', 'submm']:
         for key in data.keys():
             x_unmasked = data[key]['xdata_unmasked']
             y_unmasked = data[key]['ydata_unmasked']
@@ -273,11 +280,7 @@ class SimulationData:
         # Load the .npz file
         data = np.load(data_path)
 
-        if model == 'triplet':
-            # Combine the train, val, and test data to pick a random example from all data
-            all_data = np.concatenate([data['train'], data['val'], data['test']], axis=0)
-        elif model == 'mogp':
-            all_data = data['data']
+        all_data = np.concatenate([data['train'], data['val'], data['test']], axis=0)
         
         # Select a random example
         if sim_number == -1:
