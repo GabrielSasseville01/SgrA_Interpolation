@@ -333,11 +333,9 @@ def plot_test(
                     # Plot predicted means and uncertainty bounds for the current channel
                     indices = np.where(channel_indices == chan)
                     total_pred_points += len(indices[0])
-                    print('Amount of points to predict: ', len(indices[0]), 'for channel: ', chan)
+
                     times = time_indices[indices]
                     mymeans = means[indices]
-
-                    print('Length of means: ', len(mymeans))
 
                     ax.scatter(
                         times,
@@ -366,8 +364,6 @@ def plot_test(
                 axs[-1].set_xlabel("Timesteps")
                 plt.suptitle("Predictions and Observed Data for Each Channel")
                 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-
-                print('Total pred points is:', total_pred_points)
 
                 plt.savefig('figures/test.png')
                     

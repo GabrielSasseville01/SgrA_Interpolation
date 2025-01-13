@@ -45,7 +45,6 @@ if __name__ == '__main__':
     net = models.load_network(args, dim, device=device).to(device)
     
     chp = torch.load(f'./saved_models/{args.dataset}_{args.experiment_id}.h5')
-    # chp = torch.load('saved_models/sgrA_982081.h5')
     net.load_state_dict(chp['state_dict'])
 
     utils.plot_test(net, dim, test_loader, 30)

@@ -62,9 +62,9 @@ if __name__ == '__main__':
     avg_crps = crps/num_samples
 
     for i, key in enumerate(keys):
-        print(f'Wavelength {key}: MSE is {avg_mse[i]} and CRPS is {avg_crps[i]}')
+        print(f'\nWavelength {key}: MSE is {avg_mse[i]} and CRPS is {avg_crps[i]}')
 
-    print(f'\n Total average MSE is {np.sum(avg_mse)/dim}')
+    print(f'\nTotal average MSE is {np.sum(avg_mse)/dim}')
     print(f'Total average CRPS is {np.sum(avg_crps)/dim}')
 
     np.savez(metrics_path, mse=avg_mse, crps=avg_crps)
