@@ -1,0 +1,21 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+numpy = "==1.25.2"
+scipy = "==1.11.4"
+gpy = "==1.13.1"
+matplotlib = "==3.7.1"
+pandas = "*"
+astropy = "==5.3.4"
+seaborn = "==0.13.1"
+scikit-learn = "==1.2.2"
+pimms = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
+python_full_version = "3.10.12"
