@@ -292,8 +292,8 @@ class SimulationData:
         channels = len(keys)  # X, NIR, IR, submm
         
         # Create a figure with subplots for each channel
-        fig, axes = plt.subplots(channels, 1, figsize=(10, 8), sharex=True)
-        time = np.linspace(0, 1, timesteps)
+        fig, axes = plt.subplots(channels, 1, figsize=(10, 2 * channels), sharex=True, gridspec_kw={'hspace': 0})
+        time = np.arange(0, timesteps)
 
         if channels == 1:
             axes = [axes]
@@ -304,17 +304,20 @@ class SimulationData:
             mask = example[:, channels + j]
             
             # Plot observed data (where mask is 1)
-            axes[j].scatter(time[mask == 1], ydata[mask == 1], color='blue', label='Observed', s=1)
+            axes[j].scatter(time[mask == 1], ydata[mask == 1], s=3, color='#E6C229', label='Observed')
             # Plot masked data (where mask is 0)
-            axes[j].scatter(time[mask == 0], ydata[mask == 0], color='orange', label='Masked', s=1)
+            axes[j].scatter(time[mask == 0], ydata[mask == 0], s=3, color='#1B998B', label='Masked')
             
             # Label the subplot
             axes[j].set_ylabel(key)
-            axes[j].legend()
+            axes[j].grid(True)
+            axes[j].set_ylim(-3.5, 7.5)
+            if j == 0:
+                axes[j].legend(loc="upper right")
+            
         
         # Set common labels
-        axes[-1].set_xlabel("Normalized Time")
-        plt.suptitle("Random Example from Formatted Data")
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.savefig('')
+        axes[-1].set_xlabel("Timesteps")
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.savefig('test.png')
         plt.show()
