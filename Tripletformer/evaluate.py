@@ -32,14 +32,18 @@ parser.add_argument('--nlayers', type=int, default=1)
 parser.add_argument('--sample-type', type=str, default='random')
 parser.add_argument('--experiment-id', type=str, default=None)
 parser.add_argument('--max-early-stop', type=int, default=30)
+parser.add_argument('--modelpath', type=str, default="")
 
 args = parser.parse_args()
 print(' '.join(sys.argv))
 
 # Define file paths for checkpoint and loss files
 experiment_id = args.experiment_id or str(int(SystemRandom().random() * 10000000))
-checkpoint_path = f'./saved_models/{args.dataset}_{experiment_id}.h5'
-best_model_path = f'./saved_models/best_model_{args.dataset}_{experiment_id}.h5'
+# checkpoint_path = f'./saved_models/{args.dataset}_{experiment_id}.h5'
+if args.modelpath == "":
+    best_model_path = f'./saved_models/best_model_{args.dataset}_{experiment_id}.h5'
+else:
+    best_model_path = f'./saved_models/{args.modelpath}'
 metrics_path = f'./metrics/test_metrics_{args.dataset}_{experiment_id}.npz'
 
 
@@ -54,7 +58,7 @@ if __name__ == '__main__':
     
     net.load_state_dict(chp['state_dict'])
 
-    keys = ["X", 'NIR', "IR", "submm"]
+    keys = ["X", 'NIR', "IR", "Sub-mm"]
 
     mse, crps, num_samples = utils.evaluate_model(net, dim, test_loader, keys, 'cuda')
 

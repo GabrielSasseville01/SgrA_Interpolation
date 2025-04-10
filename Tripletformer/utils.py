@@ -69,6 +69,18 @@ def get_dataset(batch_size, dataset, test_batch_size=1, filter_anomalies=True):
         x = np.load("./data_lib/physionet.npz")
     elif dataset == 'sgra':
         x = np.load("./data_lib/sgra_triplet.npz")
+    elif dataset == 'noise_10':
+        x = np.load("./data_lib/noise_10.npz")
+    elif dataset == 'noise_30':
+        x = np.load("./data_lib/noise_30.npz")
+    elif dataset == 'noise_50':
+        x = np.load("./data_lib/noise_50.npz")
+    elif dataset == 'noise_70':
+        x = np.load("./data_lib/noise_70.npz")
+    elif dataset == 'noise_90':
+        x = np.load("./data_lib/noise_90.npz")
+    elif dataset == 'noise_95':
+        x = np.load("./data_lib/noise_95.npz")
     elif dataset == 'randomwalk':
         x = np.load("./data_lib/simulated_random_walk_data.npz")
     elif dataset == 'xray':
@@ -269,103 +281,219 @@ def evaluate_model(
         return mse, crps, batch_idx
 
 
+# def plot_test(
+#     net,
+#     dim,
+#     test_loader,
+#     sample,
+#     device='cuda',
+#     y_labels=None):
+    
+#     with torch.no_grad():
+#         for batch_idx, test_batch in enumerate(test_loader):
+#             if batch_idx == sample:
+#                 test_batch = test_batch.to(device)
+
+#                 # Create context and reconstruction masks as per the original code
+#                 original_mask = torch.ones(test_batch[:, :, dim:2 * dim].shape).to(device)
+#                 subsampled_mask = test_batch[:, :, dim:2 * dim]
+#                 recon_mask = original_mask - subsampled_mask
+#                 context_y = torch.cat((test_batch[:, :, :dim] * subsampled_mask, subsampled_mask), -1)
+
+#                 # Compute unsupervised loss and update
+#                 px, time_indices, channel_indices = net.inference(
+#                     test_batch[:, :, -1], # Time progression indicator
+#                     context_y,             # Observed values and mask. 0's correspond to masked.
+#                     test_batch[:, :, -1], # Time progression indicator
+#                     torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1) # Ground truth for masked values and mask. 1's correspond to masked.
+#                 )
+                
+#                 means = px.mean
+#                 logvars = px.logvar
+#                 std = torch.sqrt(torch.exp(logvars))
+
+#                 means, stds, time_indices, channel_indices, test_batch = means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
+
+#                 # Create subplots for each channel
+#                 fig, axs = plt.subplots(dim, 1, figsize=(10, 2 * dim), sharex=True, gridspec_kw={'hspace': 0})
+#                 timesteps = np.arange(1, test_batch.size(0) + 1)
+#                 total_pred_points = 0
+                
+#                 if dim == 1:
+#                     axs = [axs]
+
+#                 for chan in range(dim):
+#                     ax = axs[chan]
+                    
+#                     # Plot observed values in orange
+#                     ax.scatter(
+#                         timesteps[np.where(test_batch[:, chan + dim] == 1)],
+#                         test_batch[:, chan][np.where(test_batch[:, chan + dim] == 1)],
+#                         s=3,
+#                         color='#E6C229',
+#                         label='Observed'
+#                     )
+                    
+#                     # Plot unobserved values in blue
+#                     ax.scatter(
+#                         timesteps[np.where(test_batch[:, chan + dim] == 0)],
+#                         test_batch[:, chan][np.where(test_batch[:, chan + dim] == 0)],
+#                         s=3,
+#                         color='#1B998B',
+#                         label='Masked'
+#                     )
+                    
+#                     # Plot predicted means and uncertainty bounds for the current channel
+#                     indices = np.where(channel_indices == chan)
+#                     total_pred_points += len(indices[0])
+
+#                     times = time_indices[indices]
+#                     mymeans = means[indices]
+
+#                     ax.scatter(
+#                         times,
+#                         mymeans,
+#                         linewidth=1,
+#                         color='#DF2935',
+#                         label='Predicted Mean',
+#                         s=3
+#                     )
+
+#                     mystds = stds[indices]
+#                     ax.fill_between(
+#                         times,
+#                         (mymeans - 2*mystds).flatten(),
+#                         (mymeans + 2*mystds).flatten(),
+#                         alpha=0.2,
+#                         color='#DF2935',
+#                         label=r'2-$\sigma$'
+#                     )
+
+#                     tmp_mse = (np.sum(np.square(
+#     test_batch[:, chan][np.where(test_batch[:, chan + dim] == 0)].cpu().numpy()
+#     - mymeans.cpu().numpy()
+# ))) / len(test_batch[:, chan][np.where(test_batch[:, chan + dim] == 0)])
+#                     print(f'MSE for key {y_labels[chan]} is: {tmp_mse}')
+
+#                     # Set labels and title for each subplot
+#                     if y_labels is not None:
+#                         ax.set_ylabel(y_labels[chan])
+#                     else:
+#                         ax.set_ylabel(f"Channel {chan + 1}")
+
+#                     ax.set_ylim(-3.5, 7.5)
+#                     if chan == 0:
+#                         ax.legend(loc="upper right")
+#                     ax.grid(True)
+
+#                 # Set x-axis label and overall title
+#                 axs[-1].set_xlabel("Timesteps")
+#                 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+#                 plt.savefig('figures/final.png')
+                    
 def plot_test(
     net,
     dim,
     test_loader,
     sample,
-    device='cuda',):
-    tmp = 0
+    device='cuda',
+    y_labels=None,
+    save_path="tripletformer_results.npz"):
+    
     with torch.no_grad():
         for batch_idx, test_batch in enumerate(test_loader):
             if batch_idx == sample:
                 test_batch = test_batch.to(device)
 
-                # Create context and reconstruction masks as per the original code
+                # Create context and reconstruction masks
                 original_mask = torch.ones(test_batch[:, :, dim:2 * dim].shape).to(device)
                 subsampled_mask = test_batch[:, :, dim:2 * dim]
                 recon_mask = original_mask - subsampled_mask
                 context_y = torch.cat((test_batch[:, :, :dim] * subsampled_mask, subsampled_mask), -1)
 
-                # Compute unsupervised loss and update
+                # Compute predictions
                 px, time_indices, channel_indices = net.inference(
-                    test_batch[:, :, -1], # Time progression indicator
-                    context_y,             # Observed values and mask. 0's correspond to masked.
-                    test_batch[:, :, -1], # Time progression indicator
-                    torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1) # Ground truth for masked values and mask. 1's correspond to masked.
+                    test_batch[:, :, -1],  # Time progression indicator
+                    context_y,  
+                    test_batch[:, :, -1],  
+                    torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1) 
                 )
                 
                 means = px.mean
                 logvars = px.logvar
                 std = torch.sqrt(torch.exp(logvars))
 
-                means, stds, time_indices, channel_indices, test_batch = means.squeeze().cpu(), std.squeeze().cpu(), time_indices.squeeze().cpu(), channel_indices.squeeze().cpu(), test_batch[:, :, :-1].squeeze().cpu()
+                # Move everything to CPU for processing
+                means = means.squeeze().cpu().numpy()
+                stds = std.squeeze().cpu().numpy()
+                time_indices = time_indices.squeeze().cpu().numpy()
+                channel_indices = channel_indices.squeeze().cpu().numpy()
+                test_batch = test_batch[:, :, :-1].squeeze().cpu().numpy()
 
-                # Create subplots for each channel
-                fig, axs = plt.subplots(dim, 1, figsize=(10, 2 * dim), sharex=True)
-                timesteps = np.arange(1, test_batch.size(0) + 1)
-                total_pred_points = 0
-                
+                # Save data
+                saved_data = {}
+
+                # Create subplots
+                fig, axs = plt.subplots(dim, 1, figsize=(10, 2 * dim), sharex=True, gridspec_kw={'hspace': 0})
+                timesteps = np.arange(1, test_batch.shape[0] + 1)
+
                 if dim == 1:
                     axs = [axs]
 
                 for chan in range(dim):
                     ax = axs[chan]
                     
-                    # Plot observed values in orange
-                    ax.scatter(
-                        timesteps[np.where(test_batch[:, chan + dim] == 1)],
-                        test_batch[:, chan][np.where(test_batch[:, chan + dim] == 1)],
-                        s=0.5,
-                        color='blue',
-                        label='Observed'
-                    )
+                    # Observed values
+                    obs_indices = np.where(test_batch[:, chan + dim] == 1)
+                    obs_x = timesteps[obs_indices]
+                    obs_y = test_batch[:, chan][obs_indices]
                     
-                    # Plot unobserved values in blue
-                    ax.scatter(
-                        timesteps[np.where(test_batch[:, chan + dim] == 0)],
-                        test_batch[:, chan][np.where(test_batch[:, chan + dim] == 0)],
-                        s=0.5,
-                        color='orange',
-                        label='Masked'
-                    )
-                    
-                    # Plot predicted means and uncertainty bounds for the current channel
-                    indices = np.where(channel_indices == chan)
-                    total_pred_points += len(indices[0])
+                    # Masked values
+                    masked_indices = np.where(test_batch[:, chan + dim] == 0)
+                    masked_x = timesteps[masked_indices]
+                    masked_y = test_batch[:, chan][masked_indices]
 
-                    times = time_indices[indices]
-                    mymeans = means[indices]
+                    # Predictions
+                    pred_indices = np.where(channel_indices == chan)
+                    pred_times = time_indices[pred_indices]
+                    pred_means = means[pred_indices]
+                    pred_stds = stds[pred_indices]
+                    pred_lower = pred_means - 2 * pred_stds
+                    pred_upper = pred_means + 2 * pred_stds
 
-                    ax.scatter(
-                        times,
-                        mymeans,
-                        linewidth=1,
-                        color='red',
-                        label='Predicted Mean',
-                        s=0.5
-                    )
+                    # Save arrays
+                    key_label = y_labels[chan] if y_labels else f"Channel_{chan+1}"
+                    saved_data[f"{key_label}_train_x"] = obs_x
+                    saved_data[f"{key_label}_train_y"] = obs_y
+                    saved_data[f"{key_label}_test_x"] = masked_x
+                    saved_data[f"{key_label}_test_y"] = masked_y
+                    saved_data[f"{key_label}_predicted_means"] = pred_means
+                    saved_data[f"{key_label}_lower_bound"] = pred_lower
+                    saved_data[f"{key_label}_upper_bound"] = pred_upper
 
-                    mystds = stds[indices]
-                    ax.fill_between(
-                        times,
-                        (mymeans - 2*mystds).flatten(),
-                        (mymeans + 2*mystds).flatten(),
-                        alpha=0.2,
-                        color='red',
-                        label=r'2-$\sigma$'
-                    )
-                    
-                    # Set labels and title for each subplot
-                    ax.set_ylabel(f"Channel {chan + 1}")
-                    ax.legend(loc="upper right")
+                    # Plot
+                    ax.scatter(obs_x, obs_y, s=3, color='#E6C229', label='Observed')
+                    ax.scatter(masked_x, masked_y, s=3, color='#1B998B', label='Masked')
+                    ax.scatter(pred_times, pred_means, linewidth=1, color='#DF2935', label='Predicted Mean', s=3)
+                    ax.fill_between(pred_times, pred_lower, pred_upper, alpha=0.2, color='#DF2935', label=r'2-$\sigma$')
 
-                # Set x-axis label and overall title
+                    # Compute and print MSE
+                    tmp_mse = np.mean((masked_y - pred_means) ** 2)
+                    print(f'MSE for key {key_label} is: {tmp_mse:.5f}')
+
+                    # Labels
+                    ax.set_ylabel(key_label)
+                    ax.set_ylim(-3.5, 7.5)
+                    if chan == 0:
+                        ax.legend(loc="upper right")
+                    ax.grid(True)
+
                 axs[-1].set_xlabel("Timesteps")
-                plt.suptitle("Predictions and Observed Data for Each Channel")
                 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+                plt.savefig('figures/final.png')
 
-                plt.savefig('figures/test.png')
-                    
-                
+                # Save the results
+                np.savez(save_path, **saved_data)
+                print(f"Results saved to {save_path}")
 

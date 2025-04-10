@@ -20,7 +20,7 @@ parser.add_argument('--batch-size', type=int, default=50)
 parser.add_argument('--norm', action='store_true')
 parser.add_argument('--enc-num-heads', type=int, default=4)
 parser.add_argument('--dec-num-heads', type=int, default=4)
-parser.add_argument('--dataset', type=str, default='sgrA')
+parser.add_argument('--dataset', type=str, default='sgra')
 parser.add_argument('--net', type=str, default='triple')
 parser.add_argument('--sample-tp', type=float, default=0.1)
 parser.add_argument('--shuffle', action='store_true')
@@ -32,6 +32,7 @@ parser.add_argument('--nlayers', type=int, default=1)
 parser.add_argument('--sample-type', type=str, default='random')
 parser.add_argument('--experiment-id', type=str, default=None)
 parser.add_argument('--max-early-stop', type=int, default=30)
+parser.add_argument('--plot-sample', type=int, default=100)
 
 args = parser.parse_args()
 print(' '.join(sys.argv))
@@ -44,8 +45,8 @@ if __name__ == '__main__':
     dim = data_obj["input_dim"]
     net = models.load_network(args, dim, device=device).to(device)
     
-    chp = torch.load(f'./saved_models/{args.dataset}_{args.experiment_id}.h5')
+    chp = torch.load(f'./saved_models/best_model_{args.dataset}_{args.experiment_id}.h5')
     net.load_state_dict(chp['state_dict'])
 
-    utils.plot_test(net, dim, test_loader, 30)
+    utils.plot_test(net, dim, test_loader, args.plot_sample, y_labels=['X', 'NIR', 'IR', 'Sub-mm'])
     
