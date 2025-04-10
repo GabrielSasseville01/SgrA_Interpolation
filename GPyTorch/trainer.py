@@ -3,7 +3,7 @@ from model import MultiTaskGPModel
 import torch
 
 class Trainer():
-    def __init__(self, full_train_x, full_train_idx, full_train_y, likelihood = 'gaussian', max_early_stop = 30, iterations = 1000):
+    def __init__(self, full_train_x, full_train_idx, full_train_y, likelihood = 'gaussian', max_early_stop = 30, iterations = 1000, verbose = False):
         self.full_train_x = full_train_x.cuda() # remove cuda if not supported
         self.full_train_idx = full_train_idx.cuda() # remove cuda if not supported
         self.full_train_y = full_train_y.cuda() # remove cuda if not supported
@@ -14,6 +14,7 @@ class Trainer():
         self.mll = 0
         self.max_early_stop = max_early_stop
         self.iterations = iterations
+        self.verbose = verbose
     
     def initialize(self):
         if self.likelihood == 'gaussian':
@@ -34,7 +35,10 @@ class Trainer():
         output = self.model(self.full_train_x, self.full_train_idx)
         loss = -self.mll(output, self.full_train_y)
         loss.backward()
-        print(f"Iter {i + 1}/{self.iterations} - Loss: {loss.item():.3f}")
+        
+        if self.verbose:
+            print(f"Iter {i + 1}/{self.iterations} - Loss: {loss.item():.3f}")
+
         self.optimizer.step()
 
         return loss

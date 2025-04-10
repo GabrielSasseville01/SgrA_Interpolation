@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from scipy.stats import norm
+import matplotlib.pyplot as plt
 
 def get_dataset(dataset):
     """
@@ -30,7 +31,7 @@ def get_dataset(dataset):
     """
     x = np.load(f'data_lib/{dataset}_mogp.npz')
 
-    data = torch.from_numpy(x['data']).float()
+    data = torch.from_numpy(x['test']).float()
 
     return data
 
@@ -70,17 +71,67 @@ def crps_norm(y, mu, sigma):
     w = (y-mu)/sigma
     return np.sum(sigma * (w*(2*norm.cdf(w)-1) + 2 * norm.pdf(w) - 1/np.sqrt(np.pi))) / len(y)
 
-
 # Define plotting function for the observed and predicted values
-def ax_plot(ax, train_y, train_x, test_y, test_x, means, lower, upper, title):
+def ax_plot(ax, train_y, train_x, test_y, test_x, means, lower, upper, label):
     # Plot the training data as black stars
-    ax.scatter(train_x, train_y, color='blue', s=5)
+    ax.scatter(train_x, train_y, color='#E6C229', s=3, label='Observed')
     # Plot test data as black stars
-    ax.scatter(test_x, test_y, color='orange', s=5)
+    ax.scatter(test_x, test_y, color='#1B998B', s=3, label='Masked')
     # Plot the predictive mean as a blue line
-    ax.plot(test_x, means, 'red')
+    ax.scatter(test_x, means, linewidth=1, color='#DF2935', s=3, label='Predicted Mean')
     # Shade in the confidence region
-    ax.fill_between(test_x, lower, upper, alpha=0.25, color='red')
+    ax.fill_between(test_x, lower, upper, alpha=0.2, color='#DF2935', label=r'2-$\sigma$')
+
+    ax.set_ylabel(label)
+    ax.set_ylim(-3.5, 7.5)
+    ax.grid(True)
     # ax.set_ylim([-3, 3])  # Set limits for the y-axis
-    ax.legend(['Observed Data', 'Mean', r'2-$\sigma$'])
-    ax.set_title(title)
+    # ax.legend(['Observed Data', 'Mean', r'2-$\sigma$'])
+    # ax.set_title(title)
+
+
+def plot_example(data, labels):
+    dim = len(labels)
+
+    fig, axs = plt.subplots(dim, 1, figsize=(10, 2 * dim), sharex=True, gridspec_kw={'hspace': 0})
+
+    if dim == 1:
+        axs = [axs]
+
+    for i, tmp_dict in enumerate(data):
+        ax = axs[i]
+
+        train_x = tmp_dict['train_x']
+        train_y = tmp_dict['train_y']
+        test_x = tmp_dict['test_x']
+        test_y = tmp_dict['test_y']
+        means = tmp_dict['means']
+        lower = tmp_dict['lower']
+        upper = tmp_dict['upper']
+
+        # Plot the training data as black stars
+        ax.scatter(train_x, train_y, color='#E6C229', s=3, label='Observed')
+        # Plot test data as black stars
+        ax.scatter(test_x, test_y, color='#1B998B', s=3, label='Masked')
+        # Plot the predictive mean as a blue line
+        ax.scatter(test_x, means, linewidth=1, color='#DF2935', s=3, label='Predicted Mean')
+        # Shade in the confidence region
+        ax.fill_between(test_x, lower, upper, alpha=0.2, color='#DF2935', label=r'2-$\sigma$')
+
+        # Set labels and title for each subplot
+        ax.set_ylabel(labels[i])
+
+        ax.set_ylim(-3.5, 7.5)
+        ax.grid(True)
+
+        if i == 0:
+            ax.legend(loc="upper right")
+
+    # Set x-axis label and overall title
+    axs[-1].set_xlabel("Timesteps")
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+    plt.savefig('plots/test.png')
+
+
+
