@@ -171,6 +171,7 @@ def compute_mse_per_feature(predicted_means, c_target, eval_points):
 
 
 def evaluate(model, test_loader, nsample=100, scaler=1, mean_scaler=0, foldername=""):
+
     num_features = 4
     with torch.no_grad():
         model.eval()
@@ -179,10 +180,6 @@ def evaluate(model, test_loader, nsample=100, scaler=1, mean_scaler=0, foldernam
 
         all_crps = []
         all_mse = []
-        all_mse2 = []
-        # all_target = []
-        # all_evalpoint = []
-        # all_generated_samples = []
         with tqdm(test_loader, mininterval=5.0, maxinterval=50.0) as it:
             for batch_no, test_batch in enumerate(it, start=1):
                 
@@ -197,30 +194,16 @@ def evaluate(model, test_loader, nsample=100, scaler=1, mean_scaler=0, foldernam
                 observed_points = observed_points.permute(0, 2, 1)
 
                 samples_median = samples.median(dim=1) # (B,T,K)
-                # all_target.append(c_target.cpu())
-                # all_evalpoint.append(eval_points.cpu())
-                # all_generated_samples.append(samples.cpu())
 
                 print('\nBatch: ', batch_no)
-                # print('C-target shape: ', c_target.shape)
-                # print('Eval_points shape: ', eval_points.shape)
-                # print('Samples shape: ', samples.shape)
-                # print('All Target shape: ', np.shape(all_target))
-                # print('All Eval_points shape: ', np.shape(all_evalpoint))
-                # print('All Samples shape: ', np.shape(all_generated_samples))
 
                 for feature_idx in range(num_features):
                     crps[feature_idx] = calc_quantile_CRPS(c_target[:, :, feature_idx], samples[:, :, :, feature_idx], eval_points[:, :, feature_idx], mean_scaler, scaler)
 
-                    tmp_mse = ((((samples_median.values[:, :, feature_idx] - c_target[:, :, feature_idx]) * eval_points[:, :, feature_idx]) ** 2) * (scaler ** 2)).sum().item()
-                    tmp_eval_points = eval_points.sum().item()
 
-                    mse[feature_idx] = tmp_mse / tmp_eval_points
-
-                mse2, useless = compute_mse_per_feature(samples_median.values, c_target, eval_points)
+                mse, useless = compute_mse_per_feature(samples_median.values, c_target, eval_points)
                 all_crps.append(crps)
                 all_mse.append(mse)
-                all_mse2.append(mse2.cpu())
 
 
                 mse_current = (
@@ -238,36 +221,19 @@ def evaluate(model, test_loader, nsample=100, scaler=1, mean_scaler=0, foldernam
                     refresh=True,
                 )
 
-                if batch_no == 1:
-                    break
-
-            # all_target = torch.cat(all_target, dim=0)
-            # all_evalpoint = torch.cat(all_evalpoint, dim=0)
-            # all_generated_samples = torch.cat(all_generated_samples, dim=0)
-
-            # print('After Concatenating')
-            # print('All Target shape: ', np.shape(all_target))
-            # print('All Eval_points shape: ', np.shape(all_evalpoint))
-            # print('All Samples shape: ', np.shape(all_generated_samples))
-
-            # crps = calc_quantile_CRPS(
-            #     all_target, all_generated_samples, all_evalpoint, mean_scaler, scaler
-            # )
-
-            # results = dict(
-            #     mse=np.sqrt(mse_total / evalpoints_total),
-            #     crps=crps,
-            # )
-
-            # print("MSE:", results['mse'])
-            # print("CRPS:", results['crps'])
-
             print('CRPS per feature: ', np.mean(all_crps, axis=0))
             print('CRPS total: ', np.mean(all_crps))
             print('MSE per feature: ', np.mean(all_mse, axis=0))
             print('MSE total: ', np.mean(all_mse))
-            print('MSE2 per feature: ', np.mean(all_mse2, axis=0))
-            print('MSE2 total: ', np.mean(all_mse2))
+
+            np.savez(
+                foldername + '/evaluation_metrics.npz',
+                crps_per_feature=np.mean(all_crps, axis=0),
+                crps_total=np.mean(all_crps),
+                mse_per_feature=np.mean(all_mse, axis=0),
+                mse_total=np.mean(all_mse)
+            )
+
 
         # return results
 

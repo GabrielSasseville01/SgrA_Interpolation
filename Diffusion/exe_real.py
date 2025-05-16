@@ -53,4 +53,4 @@ checkpoint = torch.load("./save/" + args.modelfolder + "/model.pth")
 model.load_state_dict(checkpoint['model_state_dict'])
 
 print('Evaluating Model')
-plot_test_for_example(model, real_data_loader, example_idx=0, nsample=100, scaler=1, foldername=foldername, y_labels=['X', 'NIR', 'IR', 'Sub-mm'], save_path='real_results.npz')
+plot_test_for_example(model, real_data_loader, example_idx=0, nsample=100, scaler=1, foldername=foldername, y_labels=['X', 'NIR', 'IR', 'Sub-mm'], save_path='coverage_test.npz')
