@@ -7,6 +7,11 @@ from concurrent.futures import ProcessPoolExecutor
 import parallel_simulation as sim
 from sklearn.model_selection import train_test_split
 import copy
+from matplotlib.lines import Line2D
+from datetime import datetime, timedelta
+from matplotlib.ticker import MultipleLocator
+from matplotlib.dates import HourLocator
+
 
 class SimulationData:
     def __init__(self, data_list, seed=42):
@@ -277,47 +282,86 @@ class SimulationData:
             data_path = 'data_lib/' + data_path + '_triplet.npz'
         else:
             data_path = 'data_lib/' + data_path + '_mogp.npz'
-        # Load the .npz file
-        data = np.load(data_path)
 
+        data = np.load(data_path)
         all_data = np.concatenate([data['train'], data['val'], data['test']], axis=0)
-        
-        # Select a random example
+
         if sim_number == -1:
             sim_number = np.random.randint(all_data.shape[0])
 
         example = all_data[sim_number]
-        
         timesteps = example.shape[0]
-        channels = len(keys)  # X, NIR, IR, submm
-        
-        # Create a figure with subplots for each channel
-        fig, axes = plt.subplots(channels, 1, figsize=(10, 2 * channels), sharex=True, gridspec_kw={'hspace': 0})
-        time = np.arange(0, timesteps)
+        channels = len(keys)
 
+        start_time = datetime.strptime('2019-07-17 00:00:00.0', "%Y-%m-%d %H:%M:%S.%f")
+        time_minutes = np.arange(0, timesteps)
+        utc_times = [start_time + timedelta(minutes=int(m)) for m in time_minutes]
+
+        fig, axes = plt.subplots(channels, 1, figsize=(10, 2.5 * channels), sharex=True, gridspec_kw={'hspace': 0})
         if channels == 1:
             axes = [axes]
-        
+
+        # observed_color = 'black'
+        # masked_color = 'tab:blue'
+        masked_color = 'black'
+        observed_colors = ['#E63946', '#457B9D', '#F4A261', '#2A9D8F']
+
         for j, key in enumerate(keys):
-            # Retrieve the data and mask for this channel
             ydata = example[:, j]
             mask = example[:, channels + j]
-            
-            # Plot observed data (where mask is 1)
-            axes[j].scatter(time[mask == 1], ydata[mask == 1], s=3, color='#E6C229', label='Observed')
-            # Plot masked data (where mask is 0)
-            axes[j].scatter(time[mask == 0], ydata[mask == 0], s=3, color='#1B998B', label='Masked')
-            
-            # Label the subplot
-            axes[j].set_ylabel(key)
-            axes[j].grid(True)
-            axes[j].set_ylim(-3.5, 7.5)
+
             if j == 0:
-                axes[j].legend(loc="upper right")
-            
-        
-        # Set common labels
-        axes[-1].set_xlabel("Timesteps")
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-        plt.savefig('test.png')
+                axes[j].scatter(np.array(utc_times)[mask == 1], ydata[mask == 1], s=10, color=observed_colors[j])
+                axes[j].scatter(np.array(utc_times)[mask == 0], ydata[mask == 0], s=3, color=masked_color)
+            else:
+                axes[j].scatter(np.array(utc_times)[mask == 1], ydata[mask == 1], s=15, color=observed_colors[j])
+                axes[j].scatter(np.array(utc_times)[mask == 0], ydata[mask == 0], s=3, color=masked_color)
+
+            axes[j].set_ylabel(key, fontsize=18,) #fontweight='bold')
+            # axes[j].set_ylim(-3.5, 8.0)
+            # axes[j].set_yticks([-2.0, 2.0, 6.0])
+            axes[j].yaxis.set_minor_locator(MultipleLocator(1.0))
+            axes[j].tick_params(axis='y', which='minor', length=2, width=0.8, labelsize=0, direction='in')
+            axes[j].tick_params(axis='both', which='major', labelsize=14, length=7, width=1, direction='in')
+            axes[j].grid(True, linestyle=':')
+            axes[j].label_outer()
+
+        # X-axis ticks every 2 hours
+        end_time = start_time + timedelta(hours=24)
+        xticks_2hr = [start_time + timedelta(minutes=240 * i) for i in range((timesteps // 120) + 1)]
+        if xticks_2hr[-1] < end_time:
+            xticks_2hr.append(end_time)
+
+        axes[-1].set_xticks(xticks_2hr)
+        axes[-1].set_xticklabels(
+            [t.strftime('%H:%M') if t != end_time else '24:00' for t in xticks_2hr],
+            fontsize=14
+        )
+        axes[-1].set_xlabel("Time (UTC)", fontsize=18,) #fontweight='bold')
+
+        # Set custom x-axis limits: from 23:15 the day before to 00:45 the next day
+        xlim_start = datetime.strptime('2019-07-16 23:15:00.0', "%Y-%m-%d %H:%M:%S.%f")
+        xlim_end   = datetime.strptime('2019-07-18 00:45:00.0', "%Y-%m-%d %H:%M:%S.%f")
+
+        for ax in axes:
+            ax.set_xlim([xlim_start, xlim_end])
+
+        # Minor x-ticks every hour
+        for ax in axes:
+            ax.xaxis.set_minor_locator(HourLocator(interval=1))
+            ax.tick_params(axis='x', which='minor', length=4, width=0.8, labelsize=0, direction='in')
+
+        legend_handles = [
+            Line2D([0], [0], marker='o', color='w', label='X-ray', markerfacecolor=observed_colors[0], markersize=10),
+            Line2D([0], [0], marker='o', color='w', label='NIR', markerfacecolor=observed_colors[1], markersize=10),
+            Line2D([0], [0], marker='o', color='w', label='IR', markerfacecolor=observed_colors[2], markersize=10),
+            Line2D([0], [0], marker='o', color='w', label='Submm', markerfacecolor=observed_colors[3], markersize=10),
+            Line2D([0], [0], marker='o', color='w', label='Masked', markerfacecolor=masked_color, markersize=10)
+        ]
+        fig.legend(handles=legend_handles, loc='upper center', bbox_to_anchor=(0.52, 1), ncol=5, fontsize=14)
+        fig.text(0.095, 0.915, 'Simulated Data', fontsize=22)
+
+        plt.tight_layout(rect=[0, 0.03, 1, 0.96])
+        plt.savefig('simulation_example.pdf', format='pdf', bbox_inches='tight')
         plt.show()
+
