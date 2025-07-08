@@ -69,6 +69,16 @@ def get_dataset(batch_size, dataset, test_batch_size=1, filter_anomalies=True):
         x = np.load("./data_lib/physionet.npz")
     elif dataset == 'sgra':
         x = np.load("./data_lib/sgra_triplet.npz")
+    elif dataset == 'sgra_500':
+        x = np.load("./data_lib/sgra_500.npz")
+    elif dataset == 'sgra_1000':
+        x = np.load("./data_lib/sgra_1000.npz")
+    elif dataset == 'sgra_5000':
+        x = np.load("./data_lib/sgra_5000.npz")
+    elif dataset == 'sgra_10000':
+        x = np.load("./data_lib/sgra_10000.npz")
+    elif dataset == 'sgra_14000':
+        x = np.load("./data_lib/sgra_14000.npz")
     elif dataset == 'noise_10':
         x = np.load("./data_lib/noise_10.npz")
     elif dataset == 'noise_30':
