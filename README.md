@@ -1,7 +1,8 @@
 # SgrA_Interpolation
-Asynchronous time series interpolation of Sagittarius A* multi-wavelength data using machine learning. Pre-trained model and scripts for training/inferencing can be found in directory Tripletformer
+Asynchronous time series interpolation of Sagittarius A* multi-wavelength data using machine learning. All the code/data for training/inferencing each model can be found in their respective directories: GPyTorch, Tripletformer, Diffusion
+
+Main analysis scripts can be found in the Analysis directory.
 
 Benchmarking done with multi-output Gaussian Processes (MOGPs) and Tripletformer in their respective directories.
-TACTiS-2 will be adapted to include time series specific inductive biases.
 
-Project still in the works. Part of future paper Sasseville et al. 2025
+Part of paper Sasseville et al. 2025
