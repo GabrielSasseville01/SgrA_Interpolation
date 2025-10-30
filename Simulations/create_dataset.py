@@ -265,17 +265,61 @@ class SimulationData:
             data[key]['xdata_masked'] = np.concatenate([x_masked, x_unmasked[remove_indices]])
             data[key]['ydata_masked'] = np.concatenate([y_masked, y_unmasked[remove_indices]])
     
-    def mask_data(self, mask=True, percentage_removed=0.3, noise=0.0):
+    def mask_data(self, mask=True, percentage_removed=0.3, noise=0.0, type='random'):
 
         for data in self.data_list:
 
-            if mask:
-                self.submm_mask(data['data'])
-                self.NIR_mask(data['data'])
-                self.IR_mask(data['data'], percentage_removed=percentage_removed)
-                self.X_mask(data['data'], percentage_removed=percentage_removed)
-            if noise != 0:
-                self.add_noise(data['data'], noise)
+            if type == 'random':
+                if mask:
+                    self.submm_mask(data['data'])
+                    self.NIR_mask(data['data'])
+                    self.IR_mask(data['data'], percentage_removed=percentage_removed)
+                    self.X_mask(data['data'], percentage_removed=percentage_removed)
+                if noise != 0:
+                    self.add_noise(data['data'], noise)
+            else:
+                self.mask_burst(data['data'], percentage_removed=percentage_removed)
+
+    def mask_burst(self, data, percentage_removed=0.3):
+        """
+        Masks a contiguous burst of data for all wavelengths.
+        
+        Parameters
+        ----------
+        data : dict
+            Dictionary containing all wavelength data ('NIR', 'IR', 'X', 'submm')
+            Each wavelength should have 'xdata_unmasked', 'ydata_unmasked', 
+            'xdata_masked', 'ydata_masked'.
+        percentage_removed : float
+            Fraction of unmasked points to mask in one contiguous burst.
+        """
+        np.random.seed(self.seed)
+        
+        for key in data.keys():
+            x_unmasked = data[key]['xdata_unmasked']
+            y_unmasked = data[key]['ydata_unmasked']
+            x_masked = data[key]['xdata_masked']
+            y_masked = data[key]['ydata_masked']
+
+            n_points = len(x_unmasked)
+            n_remove = int(percentage_removed * n_points)
+            if n_remove == 0:
+                continue
+
+            # Choose a random starting index for the contiguous burst
+            start_idx = np.random.randint(0, n_points - n_remove + 1)
+            end_idx = start_idx + n_remove
+            remove_indices = np.arange(start_idx, end_idx)
+
+            # Indices to keep in the unmasked data
+            keep_indices = np.setdiff1d(np.arange(n_points), remove_indices)
+
+            # Update the unmasked and masked data
+            data[key]['xdata_unmasked'] = x_unmasked[keep_indices]
+            data[key]['ydata_unmasked'] = y_unmasked[keep_indices]
+            data[key]['xdata_masked'] = np.concatenate([x_masked, x_unmasked[remove_indices]])
+            data[key]['ydata_masked'] = np.concatenate([y_masked, y_unmasked[remove_indices]])
+
 
     def plot_random_example(self, data_path, fig_path='tmp.png', sim_number=-1, keys=["X", 'NIR', "IR", "submm"], model='triplet'):
         if model == 'triplet':
