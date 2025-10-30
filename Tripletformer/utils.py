@@ -90,7 +90,19 @@ def get_dataset(batch_size, dataset, test_batch_size=1, filter_anomalies=True):
     elif dataset == 'noise_90':
         x = np.load("./data_lib/noise_90.npz")
     elif dataset == 'noise_95':
-        x = np.load("./data_lib/noise_95.npz")
+        x = np.load("./data_lib/burst_95.npz")
+    elif dataset == 'burst_10':
+        x = np.load("./data_lib/burst_10.npz")
+    elif dataset == 'burst_30':
+        x = np.load("./data_lib/burst_30.npz")
+    elif dataset == 'burst_50':
+        x = np.load("./data_lib/burst_50.npz")
+    elif dataset == 'burst_70':
+        x = np.load("./data_lib/burst_70.npz")
+    elif dataset == 'burst_90':
+        x = np.load("./data_lib/burst_90.npz")
+    elif dataset == 'burst_95':
+        x = np.load("./data_lib/burst_95.npz")
     elif dataset == 'randomwalk':
         x = np.load("./data_lib/simulated_random_walk_data.npz")
     elif dataset == 'xray':
@@ -232,6 +244,9 @@ def test_result(
     return train_loss/train_n, (-avg_loglik/train_n).item(), (mse/train_n).item()
 
 
+import numpy as np
+import torch
+
 def evaluate_model(
     net,
     dim,
@@ -239,8 +254,9 @@ def evaluate_model(
     keys,  # List of channel names
     device='cuda'):
     
-    mse = np.zeros(dim)
-    crps = np.zeros(dim)
+    # store all per-sample errors
+    mse_vals = [[] for _ in range(dim)]
+    crps_vals = [[] for _ in range(dim)]
     
     with torch.no_grad():
         for batch_idx, test_batch in enumerate(test_loader):
@@ -257,25 +273,19 @@ def evaluate_model(
             
             # Perform inference
             px, time_indices, channel_indices = net.inference(
-                test_batch[:, :, -1],  # Time progression indicator
-                context_y,             # Observed values and mask. 0's correspond to masked.
-                test_batch[:, :, -1],  # Time progression indicator
-                torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1)  # Ground truth for masked values and mask. 1's correspond to masked.
+                test_batch[:, :, -1],
+                context_y,
+                test_batch[:, :, -1],
+                torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1)
             )
             
-            means = px.mean
-            logvars = px.logvar
-            std = torch.sqrt(torch.exp(logvars))
-
-            means = means.squeeze().cpu()
-            stds = std.squeeze().cpu()
+            means = px.mean.squeeze().cpu()
+            stds = torch.sqrt(torch.exp(px.logvar)).squeeze().cpu()
             time_indices = time_indices.squeeze().cpu()
             channel_indices = channel_indices.squeeze().cpu()
             test_batch = test_batch[:, :, :-1].squeeze().cpu()
 
-
             for chan in range(dim):
-
                 y = test_batch[:, chan][np.where(test_batch[:, chan + dim] == 0)]
                 indices = np.where(channel_indices == chan)
                 preds = means[indices]
@@ -285,10 +295,88 @@ def evaluate_model(
                 preds = preds.cpu().numpy()
                 sigmas = sigmas.cpu().numpy()
 
-                mse[chan] += mse_inference(y, preds)
-                crps[chan] += crps_norm(y, preds, sigmas)
+                mse_vals[chan].append(mse_inference(y, preds))
+                crps_vals[chan].append(crps_norm(y, preds, sigmas))
+    
+    # Convert to arrays for easy statistics
+    mse_stats = [(np.mean(vals), np.std(vals)) for vals in mse_vals]
+    crps_stats = [(np.mean(vals), np.std(vals)) for vals in crps_vals]
+    
+    for i, key in enumerate(keys):
+        mse_mean, mse_std = mse_stats[i]
+        crps_mean, crps_std = crps_stats[i]
+        print(f"\nWavelength {key}: "
+              f"MSE = {mse_mean:.4f} ± {mse_std:.4f}, "
+              f"CRPS = {crps_mean:.4f} ± {crps_std:.4f}")
+    
+    total_mse_mean = np.mean([m for m, _ in mse_stats])
+    total_mse_std  = np.mean([s for _, s in mse_stats])  # avg of stds across channels
+    total_crps_mean = np.mean([m for m, _ in crps_stats])
+    total_crps_std  = np.mean([s for _, s in crps_stats])
+
+    print(f"\nTotal average MSE = {total_mse_mean:.4f} ± {total_mse_std:.4f}")
+    print(f"Total average CRPS = {total_crps_mean:.4f} ± {total_crps_std:.4f}")
+
+    return mse_stats, crps_stats
+
+
+# def evaluate_model(
+#     net,
+#     dim,
+#     test_loader,
+#     keys,  # List of channel names
+#     device='cuda'):
+    
+#     mse = np.zeros(dim)
+#     crps = np.zeros(dim)
+    
+#     with torch.no_grad():
+#         for batch_idx, test_batch in enumerate(test_loader):
+#             if batch_idx % 100 == 0:
+#                 print('Evaluating Sample:', batch_idx)
+#             test_batch = test_batch.to(device)
+            
+#             # Create context and reconstruction masks
+#             original_mask = torch.ones_like(test_batch[:, :, dim:2 * dim])
+#             subsampled_mask = test_batch[:, :, dim:2 * dim]
+#             recon_mask = original_mask - subsampled_mask
+            
+#             context_y = torch.cat((test_batch[:, :, :dim] * subsampled_mask, subsampled_mask), -1)
+            
+#             # Perform inference
+#             px, time_indices, channel_indices = net.inference(
+#                 test_batch[:, :, -1],  # Time progression indicator
+#                 context_y,             # Observed values and mask. 0's correspond to masked.
+#                 test_batch[:, :, -1],  # Time progression indicator
+#                 torch.cat((test_batch[:, :, :dim] * recon_mask, recon_mask), -1)  # Ground truth for masked values and mask. 1's correspond to masked.
+#             )
+            
+#             means = px.mean
+#             logvars = px.logvar
+#             std = torch.sqrt(torch.exp(logvars))
+
+#             means = means.squeeze().cpu()
+#             stds = std.squeeze().cpu()
+#             time_indices = time_indices.squeeze().cpu()
+#             channel_indices = channel_indices.squeeze().cpu()
+#             test_batch = test_batch[:, :, :-1].squeeze().cpu()
+
+
+#             for chan in range(dim):
+
+#                 y = test_batch[:, chan][np.where(test_batch[:, chan + dim] == 0)]
+#                 indices = np.where(channel_indices == chan)
+#                 preds = means[indices]
+#                 sigmas = stds[indices]
+
+#                 y = y.cpu().numpy()
+#                 preds = preds.cpu().numpy()
+#                 sigmas = sigmas.cpu().numpy()
+
+#                 mse[chan] += mse_inference(y, preds)
+#                 crps[chan] += crps_norm(y, preds, sigmas)
         
-        return mse, crps, batch_idx
+#         return mse, crps, batch_idx
 
 
 # def plot_test(

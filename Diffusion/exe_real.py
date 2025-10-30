@@ -10,7 +10,7 @@ import numpy as np
 from dataset_real import create_real_data_dataloader
 from main_model import CSDI_Sgra
 from dataset_sgra import get_dataloader
-from utils import train, plot_test_for_example
+from utils import train, plot_test_for_example, evaluate_real
 
 parser = argparse.ArgumentParser(description="CSDI")
 parser.add_argument("--config", type=str, default="base.yaml")
@@ -27,7 +27,7 @@ parser.add_argument("--nsample", type=int, default=100)
 parser.add_argument("--real_data_path", type=str, default="real_data.npz") #Added real data path.
 
 args = parser.parse_args()
-print(args)
+# print(args)
 
 path = Path(__file__).parents[0].resolve() / 'config' / args.config
 with open(path, "r") as f:
@@ -36,7 +36,7 @@ with open(path, "r") as f:
 config["model"]["is_unconditional"] = args.unconditional
 config["model"]["test_missing_ratio"] = args.testmissingratio
 
-print(json.dumps(config, indent=4))
+# print(json.dumps(config, indent=4))
 
 # Load the real dataset
 real_data = np.load(args.real_data_path)['real_data']
@@ -53,4 +53,5 @@ checkpoint = torch.load("./save/" + args.modelfolder + "/model.pth")
 model.load_state_dict(checkpoint['model_state_dict'])
 
 print('Evaluating Model')
-plot_test_for_example(model, real_data_loader, example_idx=0, nsample=100, scaler=1, foldername=foldername, y_labels=['X', 'NIR', 'IR', 'Sub-mm'], save_path='coverage_test.npz')
+# plot_test_for_example(model, real_data_loader, example_idx=0, nsample=100, scaler=1, foldername=foldername, y_labels=['X', 'NIR', 'IR', 'Sub-mm'], save_path='coverage_test.npz')
+evaluate_real(model, real_data_loader, example_idx=0, nsample=100, y_labels=['X', 'NIR', 'IR', 'Sub-mm'], save_path='coverage_test.npz')

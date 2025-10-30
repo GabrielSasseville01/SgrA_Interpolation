@@ -169,6 +169,78 @@ def compute_mse_per_feature(predicted_means, c_target, eval_points):
 
     return mse_per_feature, total_average_mse
 
+# def evaluate(model, test_loader, nsample=100, scaler=1, mean_scaler=0, foldername=""):
+#     num_features = 4
+#     with torch.no_grad():
+#         model.eval()
+#         mse_total = 0
+#         evalpoints_total = 0
+
+#         all_crps = []
+#         all_mse = []
+#         all_mse2 = []
+#         with tqdm(test_loader, mininterval=5.0, maxinterval=50.0) as it:
+#             for batch_no, test_batch in enumerate(it, start=1):
+#                 crps = torch.zeros(num_features)
+#                 mse = torch.zeros(num_features)
+#                 output = model.evaluate(test_batch, nsample)
+
+#                 samples, c_target, eval_points, observed_points, observed_time = output
+#                 samples = samples.permute(0, 1, 3, 2)  # (B,nsample,T,K)
+#                 c_target = c_target.permute(0, 2, 1)  # (B,T,K)
+#                 eval_points = eval_points.permute(0, 2, 1) # (B,T,K)
+#                 observed_points = observed_points.permute(0, 2, 1)
+
+#                 samples_median = samples.median(dim=1) # (B,T,K)
+
+#                 print('\nBatch: ', batch_no)
+
+#                 for feature_idx in range(num_features):
+#                     crps[feature_idx] = calc_quantile_CRPS(c_target[:, :, feature_idx], samples[:, :, :, feature_idx], eval_points[:, :, feature_idx], mean_scaler, scaler)
+
+#                     tmp_mse = ((((samples_median.values[:, :, feature_idx] - c_target[:, :, feature_idx]) * eval_points[:, :, feature_idx]) ** 2) * (scaler ** 2)).sum().item()
+#                     tmp_eval_points = eval_points.sum().item()
+
+#                     mse[feature_idx] = tmp_mse / tmp_eval_points
+
+#                 mse2, useless = compute_mse_per_feature(samples_median.values, c_target, eval_points)
+#                 all_crps.append(crps)
+#                 all_mse.append(mse)
+#                 all_mse2.append(mse2.cpu())
+
+
+#                 mse_current = (
+#                     ((samples_median.values - c_target) * eval_points) ** 2
+#                 ) * (scaler ** 2)
+
+#                 mse_total += mse_current.sum().item()
+#                 evalpoints_total += eval_points.sum().item()
+
+#                 it.set_postfix(
+#                     ordered_dict={
+#                         "mse_total": mse_total / evalpoints_total,
+#                         "batch_no": batch_no,
+#                     },
+#                     refresh=True,
+#                 )
+
+#             print('CRPS per feature: ', np.mean(all_crps, axis=0))
+#             print('CRPS total: ', np.mean(all_crps))
+#             print('MSE per feature: ', np.mean(all_mse, axis=0))
+#             print('MSE total: ', np.mean(all_mse))
+#             print('MSE2 per feature: ', np.mean(all_mse2, axis=0))
+#             print('MSE2 total: ', np.mean(all_mse2))
+#             np.savez(
+#                 foldername + '/evaluation_metrics.npz',
+#                 crps_per_feature=np.mean(all_crps, axis=0),
+#                 crps_total=np.mean(all_crps),
+#                 mse_per_feature=np.mean(all_mse, axis=0),
+#                 mse_total=np.mean(all_mse),
+#                 mse2_per_feature=np.mean(all_mse2, axis=0),
+#                 mse2_total=np.mean(all_mse2),
+#             )
+#         # return results
+
 
 def evaluate(model, test_loader, nsample=100, scaler=1, mean_scaler=0, foldername=""):
 
@@ -636,6 +708,218 @@ def plot_test_for_example(model, test_loader, example_idx, nsample=100, scaler=1
             if foldername:
                 plt.savefig(f"{foldername}/example_{example_idx}.png")
             plt.show()
+
+def compute_pit_diffusion(y_true, samples):
+    """
+    PIT for diffusion model using empirical CDF.
+    samples: shape (n_samples, n_points)
+    """
+    return np.array([np.mean(samples[:, i] <= y_true[i]) for i in range(len(y_true))])
+
+# def evaluate_real(model, test_loader, example_idx, nsample=100, y_labels=None, save_path=None,
+#                   scaler=1, mean_scaler=0):
+#     dataset = test_loader.dataset
+    
+#     # Extract the specific example
+#     example = dataset[example_idx]
+
+#     # Wrap the single example in a DataLoader to keep the rest of the code consistent
+#     single_example_loader = torch.utils.data.DataLoader([example], batch_size=1)
+
+#     with torch.no_grad():
+#         model.eval()
+        
+#         for test_batch in single_example_loader:
+#             output = model.evaluate(test_batch, nsample)
+
+#             crps = torch.zeros(4)
+#             mse = torch.zeros(4)
+
+#             # Unpack output
+#             samples, c_target, eval_points, observed_points, observed_time = output
+#             samples = samples.permute(0, 1, 3, 2)  # (B, nsample, L, K)
+#             c_target = c_target.permute(0, 2, 1)   # (B, L, K)
+#             eval_points = eval_points.permute(0, 2, 1)
+#             observed_points = observed_points.permute(0, 2, 1)
+#             samples_median = samples.median(dim=1) # (B,T,K)
+
+#             # Since batch_size=1, select the only example
+#             generated_samples = samples[0].cpu()       # (nsample, L, K)
+#             target = c_target[0].cpu()                 # (L, K)
+#             eval_mask = eval_points[0].cpu()           # (L, K)
+#             observed_mask = observed_points[0].cpu()   # (L, K)
+#             observed_time = observed_time[0].cpu()     # (L)
+
+#             # Median predictions and spread
+#             predicted_values = generated_samples.median(dim=0).values  # (L, K)
+#             std_values = generated_samples.std(dim=0)                  # (L, K)
+#             upper_bound = predicted_values + 2 * std_values
+#             lower_bound = predicted_values - 2 * std_values
+
+#             # Number of features (channels) to handle
+#             num_features = target.size(1)
+#             time_steps = torch.arange(target.size(0))
+
+#             saved_data = {}
+
+#             # --- Loop over features ---
+#             for feature_idx in range(num_features):
+#                 # Extract observed/masked indices
+#                 obs_indices = time_steps[observed_mask[:, feature_idx].bool()].numpy()
+#                 obs_y = target[observed_mask[:, feature_idx].bool(), feature_idx].numpy()
+#                 masked_indices = time_steps[eval_mask[:, feature_idx].bool()].numpy()
+#                 masked_y = target[eval_mask[:, feature_idx].bool(), feature_idx].numpy()
+#                 pred_means = predicted_values[eval_mask[:, feature_idx].bool(), feature_idx].numpy()
+#                 pred_lower = lower_bound[eval_mask[:, feature_idx].bool(), feature_idx].numpy()
+#                 pred_upper = upper_bound[eval_mask[:, feature_idx].bool(), feature_idx].numpy()
+
+#                 # Save data for plotting
+#                 key_label = y_labels[feature_idx] if y_labels else f"Channel_{feature_idx+1}"
+#                 saved_data[f"{key_label}_train_x"] = obs_indices
+#                 saved_data[f"{key_label}_train_y"] = obs_y
+#                 saved_data[f"{key_label}_test_x"] = masked_indices
+#                 saved_data[f"{key_label}_test_y"] = masked_y
+#                 saved_data[f"{key_label}_predicted_means"] = pred_means
+#                 saved_data[f"{key_label}_lower_bound"] = pred_lower
+#                 saved_data[f"{key_label}_upper_bound"] = pred_upper
+
+#                 # --- Compute CRPS ---
+#                 crps[feature_idx] = calc_quantile_CRPS(
+#                     c_target[:, :, feature_idx],                # (L,)
+#                     samples[:, :, :, feature_idx],  # (nsample, L)
+#                     eval_points[:, :, feature_idx],             # (L,)
+#                     mean_scaler, scaler
+#                 )
+
+#             mse, useless = compute_mse_per_feature(samples_median.values, c_target, eval_points)
+
+#             mse = mse.cpu().numpy()
+#             crps = crps.cpu().numpy()
+
+#             print("MSE per feature:", mse)
+#             print("MSE total:", np.mean(mse))
+#             print("CRPS per feature:", crps)
+#             print("CRPS total:", np.mean(crps))
+
+#             # Save metrics into the npz
+#             saved_data["mse_per_feature"] = mse
+#             saved_data["mse_total"] = np.mean(mse)
+#             saved_data["crps_per_feature"] = crps
+#             saved_data["crps_total"] = np.mean(crps)
+
+#             np.savez(save_path, **saved_data)
+#             print(f"Results + metrics saved to {save_path}")
+
+def evaluate_real(model, test_loader, example_idx, nsample=100, y_labels=None, save_path=None,
+                  scaler=1, mean_scaler=0):
+    dataset = test_loader.dataset
+    
+    # Extract specific example
+    example = dataset[example_idx]
+    single_example_loader = torch.utils.data.DataLoader([example], batch_size=1)
+
+    with torch.no_grad():
+        model.eval()
+        
+        for test_batch in single_example_loader:
+            output = model.evaluate(test_batch, nsample)
+
+            crps = torch.zeros(4)
+            mse = torch.zeros(4)
+
+            # Unpack model output
+            samples, c_target, eval_points, observed_points, observed_time = output
+            samples = samples.permute(0, 1, 3, 2)  # (B, nsample, L, K)
+            c_target = c_target.permute(0, 2, 1)   # (B, L, K)
+            eval_points = eval_points.permute(0, 2, 1)
+            observed_points = observed_points.permute(0, 2, 1)
+            samples_median = samples.median(dim=1) # (B, L, K)
+
+            generated_samples = samples[0].cpu()       # (nsample, L, K)
+            target = c_target[0].cpu()                 # (L, K)
+            eval_mask = eval_points[0].cpu()           # (L, K)
+            observed_mask = observed_points[0].cpu()   # (L, K)
+            observed_time = observed_time[0].cpu()     # (L)
+
+            predicted_values = generated_samples.median(dim=0).values  # (L, K)
+            std_values = generated_samples.std(dim=0)                  # (L, K)
+            upper_bound = predicted_values + 2 * std_values
+            lower_bound = predicted_values - 2 * std_values
+
+            num_features = target.size(1)
+            time_steps = torch.arange(target.size(0))
+            saved_data = {}
+            pit_data = {}  # For storing PIT per feature
+
+            for feature_idx in range(num_features):
+                obs_indices = time_steps[observed_mask[:, feature_idx].bool()].numpy()
+                obs_y = target[observed_mask[:, feature_idx].bool(), feature_idx].numpy()
+                masked_indices = time_steps[eval_mask[:, feature_idx].bool()].numpy()
+                masked_y = target[eval_mask[:, feature_idx].bool(), feature_idx].numpy()
+                pred_means = predicted_values[eval_mask[:, feature_idx].bool(), feature_idx].numpy()
+                pred_lower = lower_bound[eval_mask[:, feature_idx].bool(), feature_idx].numpy()
+                pred_upper = upper_bound[eval_mask[:, feature_idx].bool(), feature_idx].numpy()
+                samples_feat = generated_samples[:, eval_mask[:, feature_idx].bool(), feature_idx].numpy()
+
+                # --- Compute PIT ---
+                pit_values = compute_pit_diffusion(masked_y, samples_feat)
+                key_label = y_labels[feature_idx] if y_labels else f"Channel_{feature_idx+1}"
+                pit_data[f"{key_label}"] = pit_values
+
+                # Save usual prediction data
+                saved_data[f"{key_label}_train_x"] = obs_indices
+                saved_data[f"{key_label}_train_y"] = obs_y
+                saved_data[f"{key_label}_test_x"] = masked_indices
+                saved_data[f"{key_label}_test_y"] = masked_y
+                saved_data[f"{key_label}_predicted_means"] = pred_means
+                saved_data[f"{key_label}_lower_bound"] = pred_lower
+                saved_data[f"{key_label}_upper_bound"] = pred_upper
+
+                # Compute CRPS
+                crps[feature_idx] = calc_quantile_CRPS(
+                    c_target[:, :, feature_idx],
+                    samples[:, :, :, feature_idx],
+                    eval_points[:, :, feature_idx],
+                    mean_scaler, scaler
+                )
+
+            # Compute MSE
+            mse, _ = compute_mse_per_feature(samples_median.values, c_target, eval_points)
+            mse = mse.cpu().numpy()
+            crps = crps.cpu().numpy()
+
+            print("MSE per feature:", mse)
+            print("MSE total:", np.mean(mse))
+            print("CRPS per feature:", crps)
+            print("CRPS total:", np.mean(crps))
+
+            # Save metrics into model npz
+            saved_data["mse_per_feature"] = mse
+            saved_data["mse_total"] = np.mean(mse)
+            saved_data["crps_per_feature"] = crps
+            saved_data["crps_total"] = np.mean(crps)
+            np.savez(save_path, **saved_data)
+            print(f"Results + metrics saved to {save_path}")
+
+            # --- Append PIT results globally ---
+            pit_file = "pit_values.npz"
+            if os.path.exists(pit_file):
+                existing = np.load(pit_file, allow_pickle=True)
+                all_pit = dict(existing)
+                existing.close()
+            else:
+                all_pit = {}
+
+            # Append new PITs
+            for k, v in pit_data.items():
+                if k in all_pit:
+                    all_pit[k] = np.concatenate([all_pit[k], v])
+                else:
+                    all_pit[k] = v
+
+            np.savez(pit_file, **all_pit)
+            print(f"PIT values appended and saved to {pit_file}")
+
 
 # def plot_test_for_example(model, test_loader, example_idx, nsample=100, scaler=1, mean_scaler=0, foldername="", y_labels=None):
     # # Access the dataset directly

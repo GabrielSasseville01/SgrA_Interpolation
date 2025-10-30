@@ -60,17 +60,19 @@ if __name__ == '__main__':
 
     keys = ["X", 'NIR', "IR", "Sub-mm"]
 
-    mse, crps, num_samples = utils.evaluate_model(net, dim, test_loader, keys, 'cuda')
+    # mse, crps, num_samples = utils.evaluate_model(net, dim, test_loader, keys, 'cuda')
 
-    avg_mse = mse/num_samples
-    avg_crps = crps/num_samples
+    mse, crps = utils.evaluate_model(net, dim, test_loader, keys, 'cuda')
 
-    for i, key in enumerate(keys):
-        print(f'\nWavelength {key}: MSE is {avg_mse[i]} and CRPS is {avg_crps[i]}')
+    # avg_mse = mse/num_samples
+    # avg_crps = crps/num_samples
 
-    print(f'\nTotal average MSE is {np.sum(avg_mse)/dim}')
-    print(f'Total average CRPS is {np.sum(avg_crps)/dim}')
+    # for i, key in enumerate(keys):
+    #     print(f'\nWavelength {key}: MSE is {avg_mse[i]} and CRPS is {avg_crps[i]}')
 
-    np.savez(metrics_path, mse=avg_mse, crps=avg_crps)
+    # print(f'\nTotal average MSE is {np.sum(avg_mse)/dim}')
+    # print(f'Total average CRPS is {np.sum(avg_crps)/dim}')
+
+    # np.savez(metrics_path, mse=avg_mse, crps=avg_crps)
 
     

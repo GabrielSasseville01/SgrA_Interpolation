@@ -79,7 +79,7 @@ else:
 
 
 print('Evaluating Model')
-# evaluate(model, test_loader, nsample=args.nsample, scaler=1, foldername=foldername)
-plot_test_for_example(model, test_loader, example_idx=150, nsample=100, scaler=1, foldername=foldername, y_labels=['X', 'NIR', 'IR', 'Sub-mm'], save_path='model_results.npz')
+evaluate(model, test_loader, nsample=args.nsample, scaler=1, foldername=foldername)
+# plot_test_for_example(model, test_loader, example_idx=150, nsample=100, scaler=1, foldername=foldername, y_labels=['X', 'NIR', 'IR', 'Sub-mm'], save_path='model_results.npz')
 # saved_data = save_data_for_example(model, test_loader, example_idx=150, nsample=100, scaler=1, mean_scaler=0, foldername=foldername, y_labels=['X', 'NIR', 'IR', 'Sub-mm'])
 # plot_saved_data(saved_data, scaler=1, y_labels=['X', 'NIR', 'IR', 'Sub-mm'])
